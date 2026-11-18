@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pinky 시뮬레이션 실습실</title>
+<style>/* 아티팩트 뷰어가 넣어 주던 기본값을 단독 파일에도 맞춤 */
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; } img { max-width: 100%; } [hidden] { display: none !important; }</style>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: 실험 노트. 왼쪽 정렬 단일 컬럼(최대 1040px), 섹션마다 "그림 + 절차" 짝. 센서 색은 RViz 관례를 따른다 */
+:root {
+  --bg: #f3f5f6;
+  --panel: #ffffff;
+  --ink: #17202a;
+  --muted: #5b6874;
+  --line: #d6dde2;
+  --code-bg: #eef1f3;
+  --accent: #2f5d8a;
+  --lidar: #d6453d;
+  --camera: #2f7fd1;
+  --depth: #d98a1c;
+  --sonar: #2e9b5f;
+  --imu: #8a5cc4;
+  --ground: #b9c3ca;
+  --obj: #c9d3da;
+  --ok: #2e8b57;
+  --warn: #b7791f;
+  --font-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "D2Coding", "Malgun Gothic", "Apple SD Gothic Neo", ui-monospace, Consolas, monospace;   /* 코드 속 한글은 한글 글꼴로 */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171c; --panel: #1a2128; --ink: #e4e9ed; --muted: #97a4af; --line: #2c3640;
+    --code-bg: #0f1418; --accent: #7fb0e0; --lidar: #ff6b5f; --camera: #5ea8ff; --depth: #f0a83a;
+    --sonar: #4cc483; --imu: #b48cf0; --ground: #3a4651; --obj: #34414c; --ok: #4cc483; --warn: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171c; --panel: #1a2128; --ink: #e4e9ed; --muted: #97a4af; --line: #2c3640;
+  --code-bg: #0f1418; --accent: #7fb0e0; --lidar: #ff6b5f; --camera: #5ea8ff; --depth: #f0a83a;
+  --sonar: #4cc483; --imu: #b48cf0; --ground: #3a4651; --obj: #34414c; --ok: #4cc483; --warn: #e0a64a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.65;
+  word-break: keep-all; overflow-wrap: break-word; }   /* 한국어는 어절 단위로 줄바꿈, 한 줄에 안 들어가는 긴 영문·경로만 끊음 */
+.tabs button, .chip, .seg button, nav.toc a { white-space: nowrap; }
+pre, pre * { word-break: normal; overflow-wrap: normal; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 22px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; }   /* 문단은 칸 폭을 끝까지 쓴다 */
+a { color: var(--accent); }
+code, pre, .mono { font-family: var(--font-mono); font-size: 13px; font-variant-ligatures: none; }   /* <!-- 가 화살표로 바뀌지 않게 */
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+header { display: grid; gap: 12px; }
+header p { color: var(--muted); }
+/* 목차: 좁은 화면은 위쪽에 붙어 따라오는 가로 줄, 넓은 화면은 왼쪽에 고정된 세로 목록 */
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; gap: 8px; overflow-x: auto;
+  background: var(--bg); padding-block: 8px; margin-block: -28px -20px; scrollbar-width: none; }
+nav.toc::-webkit-scrollbar { display: none; }
+.toc-title { display: none; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+nav.toc a[aria-current="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+@media (min-width: 1180px) {
+  .wrap { max-width: 1280px; padding-left: 240px; }
+  nav.toc { position: fixed; top: 32px; left: max(16px, calc((100vw - 1280px) / 2 + 16px)); width: 196px; margin: 0; padding: 0;
+    flex-direction: column; gap: 2px; overflow: visible; background: none; }
+  .toc-title { display: block; font-size: 12px; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; padding: 0 0 8px 14px; }
+  .wrap nav.toc a { border: 0; border-left: 2px solid var(--line); border-radius: 0; background: none; padding: 6px 12px; white-space: normal; }
+  .wrap nav.toc a:hover, .wrap nav.toc a:focus-visible { border-left-color: var(--accent); background: var(--panel); }
+  .wrap nav.toc a[aria-current="true"] { border-left-color: var(--accent); background: var(--panel); }
+  .wrap > section { scroll-margin-top: 16px; }
+}
+nav.toc a { text-decoration: none; color: var(--ink); border: 1px solid var(--line); background: var(--panel); padding: 4px 12px; border-radius: 999px; font-size: 13px; }
+nav.toc a:hover, nav.toc a:focus-visible { border-color: var(--accent); outline: none; }
+section { display: grid; gap: 18px; scroll-margin-top: 64px; }   /* 좁은 화면: 위에 붙은 목차 줄(약 48px) 아래로 *
+.sec-head { display: grid; gap: 6px; }
+.sec-head p { color: var(--muted); }
+
+/* 4단계 흐름 */
+.flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.flow > div { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+.flow .n { font-family: var(--font-mono); color: var(--accent); font-weight: 600; font-size: 13px; }
+.flow .q { color: var(--muted); font-size: 13px; }
+@media (max-width: 720px) { .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 그림 */
+.figure { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.figure .cap { font-size: 13px; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 12px 4px 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.chip[aria-pressed="false"] { opacity: 0.45; }
+.chip:focus-visible, .seg button:focus-visible, .tabs button:focus-visible, .copy:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.slider { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.slider output { font-family: var(--font-mono); color: var(--ink); min-width: 5ch; }
+.svgbox { overflow-x: auto; }
+.svgbox svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.status { font-size: 13px; padding: 8px 12px; border-radius: 6px; background: var(--code-bg); }
+.status b { font-weight: 600; }
+.status .good { color: var(--ok); } .status .bad { color: var(--warn); }
+
+/* 지도 */
+.map-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 820px) { .map-grid { grid-template-columns: minmax(0, 1fr); } }
+.mapview { position: relative; width: 100%; aspect-ratio: 42 / 32; max-width: 100%; border-radius: 6px; overflow: hidden; background: #cdcdcd; }
+.mapview img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.mapview svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; padding: 5px 12px; border: 0; background: var(--panel); color: var(--ink); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--panel); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; display: inline-block; border: 1px solid var(--line); }
+
+/* 절차 */
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+ol.steps > li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; counter-increment: s; }
+ol.steps > li::before { content: counter(s); width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--accent); color: var(--accent); font-family: var(--font-mono); font-size: 12px; font-weight: 600; display: grid; place-items: center; margin-top: 1px; }
+ol.steps .body { display: grid; gap: 6px; min-width: 0; }
+.note { font-size: 13px; color: var(--muted); }
+
+/* 코드 */
+.code { position: relative; min-width: 0; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; padding-right: 58px; overflow-x: auto; line-height: 1.55; white-space: pre; }
+.copy { position: absolute; top: 6px; right: 6px; font: inherit; font-size: 11.5px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 5px; padding: 2px 8px; cursor: pointer; }
+.copy.done { color: var(--ok); border-color: var(--ok); }
+
+/* 탭 */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); }
+.tabs button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--muted); padding: 8px 12px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 8px; align-items: center; }
+.tabs button .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--c); font-weight: 600; }
+.tabpanel { display: grid; gap: 16px; padding-top: 6px; }
+.pill { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; font-weight: 600; }
+.pill.official { color: var(--ok); } .pill.added { color: var(--accent); } .pill.virtual { color: var(--warn); }
+.stage { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.stage .lbl { font-weight: 600; font-size: 14px; }
+.stage .lbl small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.stage .body { display: grid; gap: 8px; min-width: 0; }
+@media (max-width: 560px) { .stage { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+
+/* 표 */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12.5px; background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: normal; overflow-wrap: anywhere; }
+th:first-child, td:first-child { min-width: 6.5em; }
+
+.pipes { display: grid; gap: 10px; }
+.pipe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pipe-lbl { font-weight: 600; min-width: 5.5em; }
+.pipe .node { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 6px 10px; display: grid; font-size: 13.5px; }
+.pipe .node small { color: var(--muted); font-size: 12px; }
+.pipe .arr { color: var(--muted); font-family: var(--font-mono); font-size: 12.5px; }
+.checklist { display: grid; gap: 10px; }
+.checklist > div { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+@media (max-width: 620px) { .checklist > div { grid-template-columns: minmax(0, 1fr); } }
+/* 벽·물체 */
+.methods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.methods > div { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.methods .when { font-size: 13px; color: var(--muted); }
+@media (max-width: 820px) { .methods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .methods { grid-template-columns: minmax(0, 1fr); } }
+.builder { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 760px) { .builder { grid-template-columns: minmax(0, 1fr); } }
+.form { display: grid; gap: 10px; }
+.form .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.form label { display: grid; gap: 3px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+.form input, .form select { font: inherit; font-size: 13.5px; font-family: var(--font-mono); padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; min-width: 0; }
+.form input:focus-visible, .form select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.outs { display: grid; gap: 12px; min-width: 0; }
+.outs h3 { font-size: 13px; color: var(--muted); font-weight: 600; }
+.preview { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; }
+.preview svg { display: block; width: 100%; height: auto; max-height: 260px; }
+.shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 620px) { .shots { grid-template-columns: minmax(0, 1fr); } }
+.shots figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.shots img { width: 100%; border-radius: 6px; border: 1px solid var(--line); display: block; }
+.shots figcaption { font-size: 12.5px; color: var(--muted); }
+.form input[type=color] { padding: 2px; height: 32px; }
+.unsure { border-left: 3px solid var(--warn); background: var(--panel); border-radius: 0 8px 8px 0; padding: 14px 16px; display: grid; gap: 8px; }
+.unsure ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+footer { color: var(--muted); font-size: 12.5px; }
+@media (prefers-reduced-motion: no-preference) { .chip, .seg button, .tabs button { transition: opacity .15s, background .15s, border-color .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Pinky Pro · Gazebo Harmonic · MuJoCo · ROS 2 Jazzy</div>
+    <h1>Pinky 시뮬레이션 실습실</h1>
+    <p>로봇 없이 Gazebo에서 지도를 만들고 카메라·포인트클라우드 같은 센서를 Pinky에 붙여 보는 방법을 정리했습니다.<br>명령과 수치는 공식 <code>pinky_pro</code>와 예제 패키지 <code>pinky_sim_examples</code>를 실제로 실행해서 확인한 것입니다.</p>
+  </header>
+
+  <nav class="toc" aria-label="목차">
+    <span class="toc-title">목차</span>
+    <a href="#world">벽·물체 만들기</a>
+    <a href="#map">지도 만들기</a>
+    <a href="#nav2">Nav2 실습장</a>
+    <a href="#mujoco">MuJoCo로 실습하기</a>
+    <a href="#view">센서 시야</a>
+    <a href="#sensors">센서 붙이기</a>
+    <a href="#debug">안 나올 때</a>
+    <a href="#real">실물과 다른 점</a>
+  </nav>
+
+  <section aria-labelledby="flow-h">
+    <div class="sec-head">
+      <h2 id="flow-h">어떤 센서든 순서는 같습니다</h2>
+      <p>벽·물체 만들기가 world에 무언가를 놓는 일이라면, 센서 붙이기는 로봇 모델(URDF)에 무언가를 다는 일입니다.</p>
+    </div>
+    <div class="flow">
+      <div><span class="n">① 장착</span><b>link + joint</b><span class="q">어디에, 어떤 크기·무게로 달렸나</span></div>
+      <div><span class="n">② 센서</span><b>&lt;gazebo&gt;&lt;sensor&gt;</b><span class="q">무엇을, 얼마나 자주, 어느 범위로 재나</span></div>
+      <div><span class="n">③ 브리지</span><b>ros_gz_bridge</b><span class="q">Gazebo 토픽을 ROS 토픽으로</span></div>
+      <div><span class="n">④ 확인</span><b>topic · RViz</b><span class="q">정말 나오나, 좌표가 맞나</span></div>
+    </div>
+  </section>
+
+  <!-- ================= 벽·물체 ================= -->
+  <section id="world" aria-labelledby="world-h">
+    <div class="sec-head">
+      <div class="eyebrow">world · SDF · pinky_sim_examples</div>
+      <h2 id="world-h">벽·물체 만들기</h2>
+      <p>지도를 만들려면 먼저 돌아다닐 공간이 있어야 합니다.<br>Gazebo world는 <code>&lt;model&gt;</code>의 모음이고, 벽 하나도 상자 모양 model 하나입니다.<br>상황에 맞는 방법을 고르세요.<br>MuJoCo에서 되는 것과 안 되는 것은 이 섹션 끝의 <a href="#world-mujoco">MuJoCo에서는</a> 표에 있습니다.</p>
+    </div>
+    <div class="methods">
+      <div><b>SDF 직접 쓰기</b><span class="when">원리를 이해할 때. 물체 한두 개</span></div>
+      <div><b>레이아웃 YAML → world</b><span class="when">다시 쓸 맵. 이 패키지의 기본 방식</span></div>
+      <div><b>실행 중 추가·삭제</b><span class="when">장애물을 잠깐 놓아 볼 때. world 파일은 그대로</span></div>
+      <div><b>Gazebo 창에서 그리기</b><span class="when">모양을 눈으로 빠르게 잡을 때</span></div>
+    </div>
+
+    <div class="figure">
+      <h3>SDF 한 덩어리 = 벽 하나</h3>
+      <div class="code"><pre>&lt;model name="wall_back"&gt;
+  &lt;static&gt;true&lt;/static&gt;                        &lt;!-- 안 움직이는 물체 --&gt;
+  &lt;pose&gt;0.2 1.385 0.125 0 0 0&lt;/pose&gt;           &lt;!-- x y z roll pitch yaw : 물체 "중심" --&gt;
+  &lt;link name="link"&gt;
+    &lt;collision name="collision"&gt;               &lt;!-- 부딪힘·라이다가 보는 모양 --&gt;
+      &lt;geometry&gt;&lt;box&gt;&lt;size&gt;2.04 0.02 0.25&lt;/size&gt;&lt;/box&gt;&lt;/geometry&gt;
+    &lt;/collision&gt;
+    &lt;visual name="visual"&gt;                     &lt;!-- 눈에 보이는 모양 --&gt;
+      &lt;geometry&gt;&lt;box&gt;&lt;size&gt;2.04 0.02 0.25&lt;/size&gt;&lt;/box&gt;&lt;/geometry&gt;
+    &lt;/visual&gt;
+  &lt;/link&gt;
+&lt;/model&gt;</pre></div>
+      <div class="tbl"><table>
+        <thead><tr><th>실수</th><th>증상</th><th>바로잡기</th></tr></thead>
+        <tbody>
+          <tr><td>pose z를 0으로 둠</td><td>벽이 바닥에 반쯤 묻힘</td><td>z = 높이 ÷ 2 (높이 0.25 m면 0.125)</td></tr>
+          <tr><td><code>&lt;collision&gt;</code> 없음</td><td>로봇이 통과하고 라이다에도 안 보임</td><td>visual과 같은 geometry로 collision 추가</td></tr>
+          <tr><td>world에 Sensors 플러그인 없음</td><td><code>/scan</code>이 아예 안 나옴</td><td><code>gz-sim-sensors-system</code> 포함. 공식 <code>empty.world</code>를 복사해 시작</td></tr>
+          <tr><td>벽 높이가 0.125 m 이하</td><td>Gazebo엔 보이는데 지도·장애물 감지에 없음</td><td>라이다 평면보다 높게(이 패키지는 0.25 m)</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="figure">
+      <h3>레이아웃 한 줄 → SDF 변환기</h3>
+      <p class="cap">레이아웃 YAML에는 "바닥 중심 좌표 + 크기"만 적습니다.<br><code>make_world</code>가 중심 높이, 벽 길이·각도를 계산해 SDF로 바꿉니다.<br>아래에서 값을 바꾸면 같은 규칙으로 변환한 결과가 바로 나옵니다(로봇은 원점에서 +X를 봄).</p>
+      <div class="builder">
+        <div class="form">
+          <label for="b-type">type
+            <select id="b-type">
+              <option value="wall">wall — 두 점을 잇는 벽</option>
+              <option value="box">box — 상자</option>
+              <option value="cylinder">cylinder — 기둥</option>
+            </select></label>
+          <label for="b-name">name <input id="b-name" value="gate"></label>
+          <div class="row" data-for="wall">
+            <label for="b-x1">from x <input id="b-x1" type="number" step="0.05" value="0.5"></label>
+            <label for="b-y1">from y <input id="b-y1" type="number" step="0.05" value="-0.3"></label>
+            <label for="b-th">thickness <input id="b-th" type="number" step="0.01" min="0.005" value="0.02"></label>
+          </div>
+          <div class="row" data-for="wall">
+            <label for="b-x2">to x <input id="b-x2" type="number" step="0.05" value="0.5"></label>
+            <label for="b-y2">to y <input id="b-y2" type="number" step="0.05" value="0.3"></label>
+            <label for="b-wh">height <input id="b-wh" type="number" step="0.05" min="0.01" value="0.25"></label>
+          </div>
+          <div class="row" data-for="box" hidden>
+            <label for="b-sx">X폭 <input id="b-sx" type="number" step="0.01" min="0.01" value="0.1"></label>
+            <label for="b-sy">Y깊이 <input id="b-sy" type="number" step="0.01" min="0.01" value="0.3"></label>
+            <label for="b-sz">높이 <input id="b-sz" type="number" step="0.01" min="0.01" value="0.2"></label>
+          </div>
+          <div class="row" data-for="cylinder" hidden>
+            <label for="b-r">radius <input id="b-r" type="number" step="0.01" min="0.005" value="0.04"></label>
+            <label for="b-ch">height <input id="b-ch" type="number" step="0.01" min="0.01" value="0.2"></label>
+            <label for="b-dyn">static
+              <select id="b-dyn"><option value="true">true</option><option value="false">false (밀림)</option></select></label>
+          </div>
+          <div class="row" data-for="box cylinder" hidden>
+            <label for="b-ax">at x <input id="b-ax" type="number" step="0.05" value="0.4"></label>
+            <label for="b-ay">at y <input id="b-ay" type="number" step="0.05" value="0"></label>
+            <label for="b-yaw" data-for="box">yaw(°) <input id="b-yaw" type="number" step="5" value="0"></label>
+          </div>
+          <div class="row">
+            <label for="b-color">color <input id="b-color" type="color" value="#8ca1ab"></label>
+            <label for="b-tex" style="grid-column: span 2">texture (선택) <input id="b-tex" placeholder="../textures/brick.png"></label>
+          </div>
+        </div>
+        <div class="outs">
+          <div class="preview"><svg id="b-prev" viewBox="0 0 400 260" role="img" aria-label="위에서 본 배치 미리보기"></svg></div>
+          <h3>layouts/*.yaml 에 넣을 한 줄</h3>
+          <div class="code"><pre id="b-yaml"></pre></div>
+          <h3>make_world 가 만드는 SDF</h3>
+          <div class="code"><pre id="b-sdf"></pre></div>
+          <h3>지금 켜진 Gazebo에 바로 놓기</h3>
+          <div class="code"><pre id="b-spawn"></pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="map-grid">
+      <ol class="steps">
+        <li><div class="body"><h3>레이아웃 파일 만들기</h3>
+          <div class="code"><pre># layouts/my_room.yaml  (좌표는 Gazebo 좌표, 로봇은 0,0 에서 +X)
+world_name: my_room
+origin: [0.0, 0.0]          # 이 점이 Gazebo (0,0) = 로봇 출발 위치
+wall_height: 0.25
+objects:
+  - {name: north, type: wall, from: [-1.0, 1.0], to: [1.0, 1.0]}
+  - {name: south, type: wall, from: [-1.0, -1.0], to: [1.0, -1.0]}
+  - {name: west,  type: wall, from: [-1.0, -1.0], to: [-1.0, 1.0]}
+  - {name: east,  type: wall, from: [1.0, -1.0], to: [1.0, 1.0]}
+  - {name: pillar, type: cylinder, radius: 0.05, height: 0.3, at: [-0.5, 0.5]}</pre></div></div></li>
+        <li><div class="body"><h3>world 생성 · 빌드</h3>
+          <div class="code"><pre>cd ~/pinky_pro/src/pinky_sim_examples
+ros2 run pinky_sim_examples make_world layouts/my_room.yaml -o worlds/my_room.world
+cd ~/pinky_pro &amp;&amp; colcon build --packages-select pinky_sim_examples</pre></div>
+          <p class="note"><code>worlds/*.world</code>는 생성 결과입니다.<br>고칠 때는 YAML을 고치고 다시 만듭니다.</p></div></li>
+        <li><div class="body"><h3>그 world로 실행</h3>
+          <div class="code"><pre>ros2 launch pinky_sim_examples twin_arena.launch.py \
+    world_name:=my_room.world gz_world:=my_room</pre></div>
+          <p class="note"><code>gz_world</code>는 YAML의 <code>world_name</code>과 같게 씁니다(램프 색·물체 추가가 이 이름을 씀).</p></div></li>
+      </ol>
+      <ol class="steps">
+        <li><div class="body"><h3>실행 중 물체 추가·삭제</h3>
+          <div class="code"><pre>ros2 run pinky_sim_examples spawn_object box --size 0.1 0.3 0.2 --at 0.3 0 --name my_box
+ros2 run pinky_sim_examples spawn_object wall --from 0.5 -0.3 --to 0.5 0.3 --name gate
+ros2 run pinky_sim_examples spawn_object remove --name my_box</pre></div>
+          <p class="note">내부적으로 <code>ros_gz_sim create -string '&lt;sdf&gt;…'</code>와 <code>gz service …/remove</code>를 호출합니다.<br>상자 추가·삭제는 실행해서 확인했습니다.</p></div></li>
+        <li><div class="body"><h3>Gazebo 창에서 그리기</h3>
+          <p>launch에 <code>gz_gui:=true</code>를 붙여 창을 띄웁니다.<br>상단 툴바의 Box·Cylinder·Sphere를 누르고 바닥을 클릭하면 생기고, 오른쪽 Component Inspector에서 위치·크기를 바꿉니다.<br>메뉴의 <b>Save world as</b>로 저장합니다.</p>
+          <p class="note">저장된 파일은 길고 숫자가 지저분해서, 다시 쓸 맵은 YAML로 관리하는 걸 권합니다.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="figure" id="material">
+      <h3>색·텍스처 입히기</h3>
+      <p class="cap">모양은 <code>&lt;geometry&gt;</code>, 겉모습은 <code>&lt;visual&gt;</code> 안의 <code>&lt;material&gt;</code>이 정합니다.<br>색과 텍스처는 눈에만 보이고 라이다·충돌에는 영향이 없습니다(카메라에는 찍힘).</p>
+
+      <div class="stage"><div class="lbl">단색<small>material</small></div><div class="body">
+        <div class="code"><pre>&lt;material&gt;
+  &lt;ambient&gt;0.9 0.45 0.35 1&lt;/ambient&gt;    &lt;!-- 그늘에서 보이는 색 --&gt;
+  &lt;diffuse&gt;0.9 0.45 0.35 1&lt;/diffuse&gt;    &lt;!-- 빛 받는 면의 색. 보통 ambient 와 같게 --&gt;
+  &lt;specular&gt;0.2 0.2 0.2 1&lt;/specular&gt;   &lt;!-- 반짝임 (선택) --&gt;
+  &lt;emissive&gt;0 0 0 1&lt;/emissive&gt;         &lt;!-- 스스로 빛남. 램프·LED 표현 (선택) --&gt;
+&lt;/material&gt;</pre></div>
+        <p class="note">값은 0~1 (r g b a).<br>레이아웃 YAML에서는 <code>color: [0.9, 0.45, 0.35]</code> 한 줄로 ambient·diffuse가 함께 들어갑니다.<br>실행 중 추가는 <code>--color 0.9 0.45 0.35</code>. 가상 장치 패널의 램프 색이 Gazebo에서 바뀌는 것도 이 ambient·diffuse·emissive를 실행 중에 바꾸는 방식입니다.</p></div></div>
+
+      <div class="stage"><div class="lbl">이미지<small>pbr albedo_map</small></div><div class="body">
+        <div class="code"><pre>&lt;material&gt;
+  &lt;ambient&gt;1 1 1 1&lt;/ambient&gt;&lt;diffuse&gt;1 1 1 1&lt;/diffuse&gt;       &lt;!-- 흰색 = 이미지 원래 색 --&gt;
+  &lt;pbr&gt;&lt;metal&gt;
+    &lt;albedo_map&gt;../textures/brick.png&lt;/albedo_map&gt;           &lt;!-- world 파일 기준 상대 경로 또는 절대 경로 --&gt;
+  &lt;/metal&gt;&lt;/pbr&gt;
+&lt;/material&gt;</pre></div>
+        <div class="code"><pre># 레이아웃 YAML: 경로는 YAML 파일 기준. make_world 가 world 파일 기준으로 바꿔 적는다
+- {name: brick_wall, type: wall, from: [0, 1], to: [1, 1], texture: ../textures/brick.png}
+
+# 실행 중 추가: 절대 경로로 바꿔 넘긴다 (-string 으로 넘긴 SDF 는 기준 위치가 없어서)
+ros2 run pinky_sim_examples spawn_object box --at 0.45 0 --texture ~/textures/brick.png --name brick</pre></div>
+        <div class="shots">
+          <figure><img alt="Gazebo 전면 카메라 화면: 빨강·파랑 텍스처가 입혀진 상자 두 개" src="data:image/jpeg;base64,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/DPPh/8A6DGp/lH/APE165ijFHt6ncOVHkX/AAzz4f8A+gxqf/kP/wCJrqvA/wANtN8CXF5NY3l1ctdoqN5+35QpJ4wB612eKTFKVWclZsaikMxRin4oxWQxmKMU/FGKAGYpMU/FGKALGKMU7FGKAG4oxTsUYoAbijFOxRigBuKMU7FGKAG4oxTsUYoAbijFOxRigBuKMU7FGKAG4oxTsUYoAbijFOxRigBuKMU7FGKAG4oxTsUYoAbijFOxRigBuKMU7FGKAG4oxS4oxQA3FGKdijFADcUYp2KMUANxRinYoxQA3FGKdijFADcUYp2KTFADcUYp2KMUANxRinYoxQA3FGKdijFADMUYp2KMUANxRinYoxQA3FGKdijFADMUYp+KTFADcUYp2KMUANxSYp+KMUAMxRinYoxQA3FGKdijFAE2KMU7FGKAG4oxTsUYoATFGKXFGKAExRilxRigBMUYpcUYoATFGKXFGKAExRilxRigBMUYpcUYoATFGKXFGKAExRilxRigBuKMU7FGKAG4oxTsUYoAbijFOxRigBuKMU7FGKAG4oxTsUmKAExRilxRigBMUYpaKAG4oxTqKAG4oxTqMUANxRinYoxQA3FGKXFGKAExSYp2KMUANxRinYooAbijFOxSYoATFGKXFGKAG4oxTsUYoAbijFOxRigBuKMUuKMUANxRinYoxQA3FGKdijFAEuKMUUUAGKMUUtACYoxS0YoATFGKXFGKAExRilxRigBMUYpcUYoATFGKXFGKAExRilxRigBMUYpcUYoATFGKXFGKAExRilxRigBMUYpcUYoATFGKXFGKAExRilxRigBMUYpcUUAJikxTqSgBKKWigBKKWigBKKWigBKMUuKMUAJijFLijFADcUYp2KTFACYopaKAEopaKAExRiloxQA3FGKdijFADcUUuKKAEoxS0UAJikxTqMUANxRinYpMUASUUuKMUAJRS4oxQAlFLijFACUUuKKAEopaKAEop1FADaWlooASilooASilooASilooASilooASilooASkp1FADaKdRQA2ilooASiloxQAlFLijFACUUuKMUAJRilxRigBMUYpaKAExRiiigApKWigBKKWigBKKXFGKAExRilxRigBMUYpaSgBKKWigBKKWigBKMUuKMUAJijFLikoAkooxRigAooxRigAooxS0AJRS0UAJRS0UAJRS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACYoxS0UAJijFLRQAmKMUtFACUUtFACUUtFACUUtFACUUUYoAKKMUYoAKKMUYoAKKKKAEoxS0UAJijFLRQAmKKWigBtFOpKAEopcUYoASilxRQAmKMUtJQAYooooASilooAfRRRQAUUUUAFFFFABRRRQAUUUUAFFFGKACijFGKACijFGKACijFGKACijFGKACijFGKACijFGKACijFGKACijFGKACijFGKACijFFABRRRQAUUUUAFFFFABRRRQAUUUUAFJilooATFGKWigBMUUtFACUUtFACUUYoxQAUUYooAKSlooATFGKWigBMUUtFAC4oxS0UAJijFLRQAmKWiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAxSYpaKAExRilooASilooASilooASijFGKACijFFABRRRQAUUUUAFFFFABRRRQAmKMUtFACUUtFAC0UUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUYoooATFGKWigBKKWigBKKXFJigAooooAKKKKAP/2Q=="><figcaption>world 파일로 만든 상자 둘.<br>왼쪽은 상대 경로, 오른쪽은 절대 경로.<br>둘 다 입혀짐</figcaption></figure>
+          <figure><img alt="Gazebo 전면 카메라 화면: 실행 중 추가한 텍스처 상자" src="data:image/jpeg;base64,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AlxRiiigAxRiiloATFGKWjFACYoxS4oxQAmKMUuKMUAJijFLijFACYoxS4oxQAmKMUuKMUAJijFLijFACYoxS4oxQAmKMUuKMUAJijFLijFACYoxS4oxQAmKMUuKMUAJijFLiigBMUmKdSUAJRS0UAJRS0UAJRS0UAJRilxRigBMUYpcUYoAbijFOxSYoATFFLRQAlFLRQAmKMUtGKAG4oxTsUYoAbiilxRQAlGKWigBMUmKdRigBuKMU7FJigCSilxRigBKKXFGKAEopcUYoASilxRQAlFLRQAlFOooAbS0tFACUUtFACUUtFACUUtFACUUtFACUUtFACUlOooAbRTqKAG0UtFACUUtGKAEopcUYoASilxRigBKMUuKMUAJijFLRQAmKMUUUAFJS0UAJRS0UAJRS4oxQAmKMUuKMUAJijFLSUAJRS0UAJRS0UAJRilxRigBMUYpcUlAElFGKMUAFFGKMUAFFGKWgBKKWigBKKWigBKKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooATFGKWigBMUYpaKAExRilooASilooASilooASilooASiijFABRRijFABRRijFABRRRQAlGKWigBMUYpaKAExRS0UANop1JQAlFLijFACUUuKKAExRilpKADFFFFACUUtFAD6KKKACiiigAooooAKKKKACiiigAoooxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYoxQAUUYooAKKKKACiiigAooooAKKKKACiiigApMUtFACYoxS0UAJiilooASilooASijFGKACijFFABSUtFACYoxS0UAJiilooAXFGKWigBMUYpaKAExS0UUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAGKTFLRQAmKMUtFACUUtFACUUtFACUUYoxQAUUYooAKKKKACiiigAooooAKKKKAExRilooASilooAWiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACjFFFACYoxS0UAJRS0UAJRS4pMUAFFFFABRRRQB//9k="><figcaption>실행 중 <code>spawn_object --texture</code>로 추가한 상자</figcaption></figure>
+        </div>
+        <p class="note">Pinky 전면 카메라(<code>/camera/image_raw</code>)로 찍은 실제 화면입니다(2026-11-18).<br>텍스처는 왼쪽 반 빨강(220, 30, 30)·오른쪽 반 파랑인데, 세로 면은 위에서 내리쬐는 조명을 덜 받아 훨씬 어둡게 찍혔습니다.<br>카메라 실습에 쓸 물체라면 world에 조명을 더 두거나, 텍스처를 밝게 만드세요.<br>상자는 면마다 이미지 한 장이 늘어나 붙습니다.</p></div></div>
+
+      <div class="stage"><div class="lbl">메시 모델<small>dae · obj · glb</small></div><div class="body">
+        <p>실제 물건처럼 생긴 모델은 도형 대신 메시 파일을 씁니다.<br>메시 파일 안에 재질·텍스처가 들어 있어서 <code>&lt;material&gt;</code>을 따로 적지 않아도 됩니다.</p>
+        <div class="code"><pre>my_cup/                         # 모델 폴더 (GZ_SIM_RESOURCE_PATH 경로 안에)
+├── model.config
+├── model.sdf
+├── meshes/my_cup.dae           # 또는 .obj, .glb
+└── materials/textures/*.png
+
+&lt;!-- model.sdf 의 visual --&gt;
+&lt;geometry&gt;&lt;mesh&gt;
+  &lt;uri&gt;model://my_cup/meshes/my_cup.dae&lt;/uri&gt;
+  &lt;scale&gt;1 1 1&lt;/scale&gt;              &lt;!-- mm 단위 모델이면 0.001 --&gt;
+&lt;/mesh&gt;&lt;/geometry&gt;
+
+&lt;!-- world 에 놓기 --&gt;
+&lt;include&gt;&lt;uri&gt;model://my_cup&lt;/uri&gt;&lt;pose&gt;0.5 0 0 0 0 0&lt;/pose&gt;&lt;/include&gt;</pre></div>
+        <p class="note">공식 <code>pinky_gz_sim</code>의 <code>shelf</code> 모델이 이 구조입니다.<br>공식 launch는 <code>GZ_SIM_RESOURCE_PATH</code>에 <code>pinky_gz_sim/models</code>와 <code>~/.gazebo/models</code>를 넣습니다.<br>직접 만든 모델 폴더는 다시 빌드해도 지워지지 않는 <code>~/.gazebo/models/</code>에 두면 <code>model://</code>로 찾을 수 있습니다.<br>이 방식은 이번에 직접 실행해 보지 않았습니다.</p></div></div>
+
+    </div>
+
+    <div class="figure" id="world-mujoco">
+      <h3>MuJoCo에서는</h3>
+      <p class="cap">같은 world 파일을 MuJoCo도 읽습니다(<a href="#mujoco">MuJoCo로 실습하기</a>).<br>다만 MuJoCo는 시작할 때 world와 로봇을 모델 하나로 묶어 두고 그대로 돌리기 때문에, 물체는 실행 전에만 정할 수 있습니다.<br>아래 표는 시험용 world(빨간 상자, 텍스처 상자, 파란 기둥, 밀리는 캔, 대각선 벽)를 MuJoCo로 띄워 확인한 결과입니다.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Gazebo에서 한 것</th><th>MuJoCo</th><th>대신 이렇게</th></tr></thead>
+        <tbody>
+          <tr><td>SDF 직접 쓰기</td><td>됨</td><td>상자·원기둥·구·메시, <code>model://</code> 포함을 읽음</td></tr>
+          <tr><td>레이아웃 YAML → <code>make_world</code></td><td>됨</td><td>같은 world 파일을 <code>mujoco_sim.launch.py world_name:=…</code>로 실행</td></tr>
+          <tr><td>실행 중 추가·삭제 (<code>spawn_object</code>)</td><td>안 됨</td><td>레이아웃을 고치고 <code>make_world</code> 후 다시 실행</td></tr>
+          <tr><td>Gazebo 창에서 그리기</td><td>안 됨</td><td>MuJoCo 창에는 도형을 추가하는 도구가 없음. 레이아웃으로 관리</td></tr>
+          <tr><td>단색 (<code>color</code> → <code>&lt;diffuse&gt;</code>)</td><td>됨</td><td>그대로 반영</td></tr>
+          <tr><td>이미지 텍스처 (<code>texture</code>)</td><td>상자·원기둥은 무시</td><td>흰 상자로 보임. 바닥 같은 평면에만 적용(공식 코드 기준)</td></tr>
+          <tr><td>밀리는 물체 (<code>static: false</code>)</td><td>고정됨</td><td>로봇만 움직일 수 있음. 캔을 밀면 로봇이 막힘</td></tr>
+          <tr><td>라이다보다 낮은 물체</td><td>같음</td><td>지도·코스트맵에 안 남음(Nav2 실습장의 턱이 그 예)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="shots">
+        <figure><img alt="MuJoCo 전면 카메라 화면: 빨간 상자, 초록 캔, 흰 상자" src="data:image/jpeg;base64,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QBuYoxS0VBYmKMUtFABRRijFABRRijFABRS4oxQAlFLRQAlFLRQAlGKWigBMUYpaKAExS4oooAKKKKACijFLigBKKXFGKAEopcUYoASkf7h+lOpH+4fpTAxXHzH60mKc/wB8/Wm1RAmKKWigBKKWigBKKWjFACUUuKMUAJRS4oxQAlFGKKACiiigAxRiiigBMUYpaKAExRilooASilooASilooASiloxQAlFLikxQBu0UUVBYUUUUAFFFFABRRS4oASilxRQAlFLRQAlGKWigAxRiiigAxRiiigAooooAKKKKACiiigAooooAKKKXFACUj/cP0p2KST7h+lMDFcfOfrSU5/vmkqiBtFOooAbRTqTFACUUuKMUAJRS4oxQAlFLSUAFFFFABRRRQAUYoooAMUYoooAMUmKWigBMUUtFACUUtFACUUtGKAEopcUYoA26KXFFQWJS4oooAMUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRS0AJRS4paAEoxS0UAFFFFABTZPuGnU2T7hpgY8n3z9abTnHzmm4qiAooxRQAUUUUAFFFFABRRRQAUUUUAFJS0UAJijFLRQAmKMUtFACYopaKAG0U6igBtFLRigBKKXFGKAEopcUYoASilpKANyiiioLCiiigAooooAKKKKACiiigAooooAKKKKACiiigAopcUYoASlxS0UAJS0UUAFFFFABRRRigAoxS0UAGKbL/AKs06my/cNMDHk++abTpPvmm1RAUUUUAFFFFABikxS0UAJijFLRQAlFLRQAlFLRQAlFLikxQAUUYoxQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQBtUUUVBYUUUUAFFFFABRRRQAUUUUAFFLRigYlLilooEJiloooAKKKKACiiigAoopaAEoxS0UAFFFFABRRRQAU2T7hp1Nk+4aYGPJ9802nyD5zTcVRIlFFFAgooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAxSYpaKAExRilooASilooASiloxQB//9k="><figcaption>MuJoCo 전면 카메라. 왼쪽 빨간 상자와 가운데 초록 캔은 색이 반영됐고, 오른쪽 텍스처 상자는 흰색으로 나옴</figcaption></figure>
+        <div class="code"><pre>&lt;!-- MuJoCo 가 만든 모델(~/.cache/pinky_mujoco/scene.xml) 일부 --&gt;
+&lt;geom name="red_box/link/visual_3" rgba="0.9 0.1 0.1 1" type="box" … /&gt;
+&lt;geom name="tex_box/link/visual_5" rgba="1 1 1 1" type="box" … /&gt;
+&lt;geom name="can/link/visual_9" rgba="0.1 0.8 0.2 1" type="cylinder" … /&gt;
+&lt;freejoint name="floating_base" /&gt;   &lt;!-- 움직이는 관절은 로봇 하나뿐 --&gt;</pre></div>
+      </div>
+      <p class="note">밀리는 캔 확인: 로봇에 0.15 m/s 직진을 4초(0.6 m) 보냈는데, 정답 위치로 0.268 m에서 멈췄습니다.<br>캔 앞면(x 0.32 m)에 닿은 자리입니다.<br>MuJoCo 전용 YAML 상자 목록(<code>pinky_mujoco/worlds/room.yaml</code>)도 있지만 형식이 다르고(중심 높이·전체 크기, 색 지정 없음) Gazebo에서는 못 씁니다.<br>두 시뮬레이터에서 같은 맵을 쓰려면 레이아웃 YAML → <code>make_world</code>로 만든 SDF를 쓰는 편이 낫습니다.</p>
+    </div>
+  </section>
+
+  <!-- ================= 지도 ================= -->
+  <section id="map" aria-labelledby="map-h">
+    <div class="sec-head">
+      <div class="eyebrow">SLAM · slam_toolbox</div>
+      <h2 id="map-h">지도 만들기</h2>
+      <p>기본 경기장(2.0 × 1.5 m)을 돌며 만든 실제 결과입니다.<br>레이아웃과 겹쳐 보면 무엇이 지도에 남고 무엇이 빠졌는지 보입니다.</p>
+    </div>
+    <div class="map-grid">
+      <div class="figure">
+        <div class="controls">
+          <div class="seg" role="group" aria-label="지도 보기 방식">
+            <button type="button" id="mv-map" aria-pressed="false">지도만</button>
+            <button type="button" id="mv-both" aria-pressed="true">겹쳐 보기</button>
+            <button type="button" id="mv-layout" aria-pressed="false">레이아웃만</button>
+          </div>
+        </div>
+        <div class="mapview" id="mapview">
+          <img id="mapimg" alt="slam_toolbox로 만든 기본 경기장 점유 격자 지도, 42 x 32칸" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAgCAAAAABBM7XhAAABAElEQVR42q2TW6rEMAxDT81sSGT/SzDakZmP9JEwae8MXEFo66pGltUtGwDZEmicjyQHGtnI9oIUEOVeLgCCipObKFEGKQNlAVWdyXE9Ibeg7fe92QlPPLm/lPmERiZzH4slJCOjTpXnNhMMApkAfNJqoUOIS+upwGvNlueZxeHGOIQxMjReNwqp3RtZWFARo4efk8mo12N34KbzznLfLpC1wlXPfogcdzgMWeNqLIItW12+xmBszCbH7usqBDUHpyA59DyDjCk893C1YEjMPREFcYjSE1VQoz1/YVtGb4Hg+i+/6fpV0yMu36B+EfCbA/+u9Uj30zTUfraJ2p4+fgP85akZcXCh6wAAAABJRU5ErkJggg==">
+          <svg id="layoutsvg" viewBox="-0.042 -0.055 2.1 1.6" preserveAspectRatio="none" aria-label="레이아웃 겹치기"></svg>
+        </div>
+        <div class="legend">
+          <span><i style="background:#000"></i>점유 172칸</span>
+          <span><i style="background:#fff"></i>빈 공간 918칸</span>
+          <span><i style="background:#cdcdcd"></i>모름 254칸</span>
+          <span><i style="background:var(--lidar)"></i>레이아웃: 라이다에 보이는 높이</span>
+          <span><i style="background:var(--depth)"></i>레이아웃: 라이다보다 낮음</span>
+        </div>
+        <p class="cap">해상도 0.05 m/칸, 42 × 32칸.<br>벽과 칸막이는 지도에 남았고 선반 3개(높이 0.11 m)는 라이다 평면(0.125 m)보다 낮아 비어 있습니다.<br>원점 <code>[-0.842, -0.170]</code>은 로봇 출발 위치 기준입니다.</p>
+      </div>
+
+      <ol class="steps">
+        <li><div class="body"><h3>시뮬레이션 실행</h3>
+          <div class="code"><pre>ros2 launch pinky_sim_examples twin_arena.launch.py</pre></div></div></li>
+        <li><div class="body"><h3>SLAM 시작 (공식 패키지)</h3>
+          <div class="code"><pre>ros2 launch pinky_navigation gz_map_building.launch.xml</pre></div>
+          <p class="note">내부적으로 <code>slam_toolbox</code> online_sync, <code>use_sim_time: True</code>. 지도 진행을 보려면 <code>gz_map_view.launch.xml</code>을 하나 더 띄웁니다.</p></div></li>
+        <li><div class="body"><h3>천천히 돌아다니기</h3>
+          <div class="code"><pre>ros2 run pinky_sim_examples send "speed 0.08; turn 360"
+ros2 run pinky_sim_examples send "turn 180; forward 0.4"
+ros2 run pinky_sim_examples send "turn 180; forward 1.0"</pre></div>
+          <p class="note">키보드로 하려면 <code>ros2 run teleop_twist_keyboard teleop_twist_keyboard</code>. 제자리 360° 회전과 느린 속도가 지도를 깨끗하게 만듭니다.</p></div></li>
+        <li><div class="body"><h3>지도 저장</h3>
+          <div class="code"><pre>ros2 run nav2_map_server map_saver_cli -f ~/maps/twin_map \
+  --ros-args -p use_sim_time:=true</pre></div>
+          <p class="note"><code>twin_map.pgm</code>(그림)과 <code>twin_map.yaml</code>(해상도·원점)이 생깁니다.</p></div></li>
+        <li><div class="body"><h3>저장한 지도로 Nav2</h3>
+          <div class="code"><pre>ros2 launch pinky_navigation gz_bringup_launch.xml map:=$HOME/maps/twin_map.yaml
+ros2 launch pinky_navigation gz_nav2_view.launch.xml</pre></div>
+          <p class="note">공식 README의 명령입니다.<br>기본 경기장 지도로는 실행해 보지 않았고, 아래 <a href="#nav2">Nav2 실습장</a>에서 같은 명령으로 실행해 확인했습니다.</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ================= Nav2 실습장 ================= -->
+  <section id="nav2" aria-labelledby="nav2-h">
+    <div class="sec-head">
+      <div class="eyebrow">Nav2 · AMCL · nav2_simple_commander</div>
+      <h2 id="nav2-h">Nav2 실습장</h2>
+      <p>Nav2 연습용으로 따로 만든 3.0 × 2.4 m, 방 2개짜리 맵입니다.<br>공식 <code>pinky_navigation</code> 설정을 고치지 않고 그대로 돌려 목표 5개를 실제로 보내 본 결과를 함께 적었습니다.<br>실행은 튜토리얼 수준이고, 이 맵의 목적은 그 다음 단계인 <b>파라미터를 바꿔 보고 코드로 목표를 보내는 연습</b>입니다.</p>
+    </div>
+    <div class="map-grid">
+      <div class="figure">
+        <div class="mapview" style="aspect-ratio: 69 / 57">
+          <img alt="Nav2 실습장 지도: 방 두 개, 문, 좁은 틈, 기둥과 상자" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEUAAAA5CAAAAABFBrlPAAAAiElEQVR42u1XQQ7AIAirxB/5/yf4pWbnOTfdxCUi3DyIbQEbQoZCCKxliQCQRjJkXSxgQZNNCXg626uRprovgnvoIt3cVbDIXl3nWVb5GeRpAOT6HosrEz2gZzbpHjDBA6QmuetS78HYxso+RmlYkX90oelK39drVUZ0b1Twxm9YxhfQYG6HPQCWRBQfSOysrAAAAABJRU5ErkJggg==">
+          <svg id="nav2svg" viewBox="-0.615 -2.035 3.45 2.85" preserveAspectRatio="none" aria-label="목표 지점 표시"></svg>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--accent)"></i>목표 G1~G5</span>
+          <span><i style="background:var(--depth)"></i>낮은 턱 0.08 m (지도에 없음)</span>
+          <span><i style="background:var(--lidar)"></i>문 0.8 m · 좁은 틈 0.2 m</span>
+        </div>
+        <p class="cap">레이아웃에서 계산한 지도(<code>make_map</code>, 0.05 m/칸, 69 × 57칸).<br>라이다(0.125 m)보다 높은 물체만 칠했습니다.<br>지도 좌표가 Gazebo 좌표와 같아서 공식 AMCL 초기 위치 (0, 0, 0)과 바로 맞습니다.</p>
+      </div>
+      <ol class="steps">
+        <li><div class="body"><h3>시뮬레이션</h3>
+          <div class="code"><pre>ros2 launch pinky_sim_examples twin_arena.launch.py \
+    world_name:=nav2_practice.world gz_world:=nav2_practice driver:=false</pre></div>
+          <p class="note"><code>driver:=false</code>: 문장 명령 노드를 꺼서 Nav2와 <code>/cmd_vel</code>을 두고 다투지 않게 합니다.</p></div></li>
+        <li><div class="body"><h3>Nav2 (공식 launch, 지도만 지정)</h3>
+          <div class="code"><pre>ros2 launch pinky_navigation gz_bringup_launch.xml \
+    map:=$(ros2 pkg prefix pinky_sim_examples)/share/pinky_sim_examples/maps/nav2_practice.yaml
+ros2 launch pinky_navigation gz_nav2_view.launch.xml      # RViz: 2D Goal Pose 로 목표 찍기</pre></div></div></li>
+        <li><div class="body"><h3>코드로 목표 보내기</h3>
+          <div class="code"><pre>ros2 run pinky_sim_examples nav2_patrol          # G2 → G3 → G4 → G1
+ros2 run pinky_sim_examples nav2_patrol G5       # 낮은 턱 위</pre></div>
+          <div class="code"><pre>nav = BasicNavigator()
+nav.waitUntilNav2Active(localizer='amcl')   # 응답이 한 번 사라지면 끝없이 기다릴 수 있음(아래 참고)
+nav.goToPose(pose)                  # PoseStamped, frame_id='map'
+while not nav.isTaskComplete():
+    pass
+print(nav.getResult())              # SUCCEEDED / FAILED / CANCELED</pre></div>
+          <p class="note">미니 프로젝트의 "적재 A로 가서 대기 → B로 이동" 같은 미션 로직이 이 형태입니다(<code>pinky_sim_examples/nav2_patrol.py</code>).<br>WSL에서 <code>waitUntilNav2Active()</code>가 AMCL 상태 응답을 못 받아 10분 넘게 멈춘 적이 있어서, <code>nav2_patrol</code>은 2초 제한으로 다시 묻는 <code>wait_active()</code>를 씁니다.<br>이 방식으로 G2 → G3 → G4 → G1을 4/4 성공했습니다.</p></div></li>
+      </ol>
+    </div>
+
+    <h3>목표 지점과 시험 결과</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>목표</th><th>좌표 (x, y, yaw)</th><th>보는 것</th><th>결과 (2026-11-18, WSL)</th></tr></thead>
+      <tbody>
+        <tr><td>G2</td><td><code>-0.1, 1.4, 1.57</code></td><td>문을 지나 바로 왼쪽으로</td><td>성공 19.9 s</td></tr>
+        <tr><td>G3</td><td><code>2.2, 1.1, 0</code></td><td>지그재그. 직선보다 먼 경로</td><td>성공 25.8 s</td></tr>
+        <tr><td>G4</td><td><code>2.3, -0.3, 0</code></td><td>기둥·상자 사이. 좁은 틈을 쓸지</td><td>성공 39.6 s (이번엔 틈으로 지나감)</td></tr>
+        <tr><td>G1</td><td><code>0, 0, 0</code></td><td>출발점 복귀</td><td>성공, AMCL 기준 오차 0.05 m</td></tr>
+        <tr><td>G5</td><td><code>0.55, -0.3, 0</code></td><td>지도에 없는 낮은 턱 위</td><td><b>턱 앞에서 멈췄는데 "성공"</b> (허용 오차 0.25 m 안)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>실험 거리: 이 맵을 만들며 실제로 겪은 일</h3>
+    <div class="checklist">
+      <div><div><b>문 폭 0.8 → 0.6 / 0.4 m</b><div class="note"><code>mid_wall_1</code>의 <code>to</code> 값</div></div><div><p>처음 0.4 m, 다음 0.6 m 문에서는 G2로 갈 때 경로가 문틀 모서리를 바짝 돌아 <code>RegulatedPurePursuitController detected collision ahead!</code>로 멈췄습니다.<br>지도상 "지나갈 수 있음"과 실제로 "안전하게 지나감"은 다릅니다.</p></div></div>
+      <div><div><b><code>inflation_radius</code> 0.15 → 0.25 / 0.10</b><div class="note"><code>nav2_params.yaml</code> 복사본을 <code>params_file:=</code>로</div></div><div><p>0.2 m 좁은 틈은 공식 설정에서 경계값입니다.<br>같은 G3 → G4를 보냈을 때 한 번은 문으로 돌아갔고(3.74 m), 한 번은 틈으로 지나갔습니다(1.67 m).<br>처음 만든 0.25 m 틈은 지름길로 골랐다가 틈 안에서 멈췄습니다.</p></div></div>
+      <div><div><b><code>xy_goal_tolerance</code> 0.25 → 0.05</b><div class="note"><code>general_goal_checker</code></div></div><div><p>G5가 "성공"에서 실패로 바뀌는지 봅니다.<br>허용 오차가 크면 막혀도 성공으로 보고됩니다.<br>미션 코드는 결과만 믿지 말고 실제 위치도 확인해야 합니다.</p></div></div>
+      <div><div><b>실행 중 장애물 추가</b><div class="note">저장된 지도에 없는 물체</div></div><div class="code"><pre>ros2 run pinky_sim_examples spawn_object box --at 1.5 0 --world nav2_practice</pre></div></div>
+    </div>
+    <p class="note">지도를 직접 만들려면 위 "지도 만들기"의 SLAM 절차를 이 world에서 그대로 하면 됩니다.<br>레이아웃에서 계산한 지도(<code>make_map</code>)는 Nav2 연습을 바로 시작하기 위한 지름길입니다.</p>
+  </section>
+
+  <!-- ================= MuJoCo ================= -->
+  <section id="mujoco" aria-labelledby="mujoco-h">
+    <div class="sec-head">
+      <div class="eyebrow">MuJoCo · pinky_mujoco · /ground_truth</div>
+      <h2 id="mujoco-h">MuJoCo로 실습하기</h2>
+      <p>공식 repo에는 시뮬레이터가 두 개 있습니다.<br>공식 README대로 <code>ros2 launch pinky_bringup bringup_sim.launch.xml</code>만 실행하면 기본값 때문에 Gazebo가 아니라 MuJoCo가 뜹니다(<code>sim:=gz</code>를 붙여야 Gazebo).<br>이 가이드의 앞부분은 Gazebo 기준이고 이 섹션은 같은 맵과 같은 Nav2를 MuJoCo로 돌리는 방법과 MuJoCo에서만 할 수 있는 실습을 다룹니다.</p>
+    </div>
+
+    <h3>두 시뮬레이터의 차이</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>항목</th><th>Gazebo (<code>pinky_gz_sim</code>)</th><th>MuJoCo (<code>pinky_mujoco</code>)</th></tr></thead>
+      <tbody>
+        <tr><td>시뮬레이션 속도 (이 PC, WSL)</td><td>실제 시간의 약 0.67배</td><td>약 1.0~1.08배</td></tr>
+        <tr><td>GPU</td><td>센서 렌더링에 사용</td><td>필요 없음(기본은 CPU로 그림)</td></tr>
+        <tr><td>정답 위치</td><td>ROS로 나오지 않음</td><td><code>/ground_truth</code> 50 Hz</td></tr>
+        <tr><td>모터·속도</td><td>최대 1.0 m/s, 단순 구동</td><td>실물 XL330 가속 설정, 최대 0.25 m/s</td></tr>
+        <tr><td>라이다</td><td>640점, 잡음 있음</td><td>360점, 잡음 없음(광선 계산)</td></tr>
+        <tr><td>카메라</td><td>1280 × 720</td><td>640 × 360, CPU로 그리면 약 5 Hz</td></tr>
+        <tr><td>그 밖의 센서</td><td>IMU, 초음파, D455 추가 가능</td><td>없음</td></tr>
+        <tr><td>실행 중 물체 추가</td><td><code>spawn_object</code></td><td>안 됨</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="figure">
+      <h3>브리지가 하는 일이 다릅니다</h3>
+      <div class="pipes">
+        <div class="pipe"><span class="pipe-lbl">Gazebo</span><span class="node">gz sim<small>별도 프로그램</small></span><span class="arr">gz-transport →</span><span class="node">ros_gz_bridge<small>YAML에 적힌 토픽만 통역</small></span><span class="arr">DDS →</span><span class="node">Nav2 · RViz</span></div>
+        <div class="pipe"><span class="pipe-lbl">MuJoCo</span><span class="node wide">bridge.py (ROS 노드)<small>MuJoCo 라이브러리로 물리를 직접 돌리고 토픽을 만듦</small></span><span class="arr">DDS →</span><span class="node">Nav2 · RViz</span></div>
+      </div>
+      <p class="cap">Gazebo는 자기 통신망이 있어서 그 토픽을 ROS로 통역하는 브리지가 따로 필요합니다.<br>MuJoCo는 통신망이 없는 물리 계산 라이브러리라서 공식 <code>bridge.py</code>가 시뮬레이션을 직접 돌리며 ROS 토픽을 만듭니다.<br>그래서 Gazebo는 브리지 설정이나 센서를, MuJoCo는 브리지 코드를 고쳐 토픽을 늘립니다.</p>
+    </div>
+
+    <div class="map-grid">
+      <ol class="steps">
+        <li><div class="body"><h3>설치 (최초 1회)</h3>
+          <div class="code"><pre>pip install --user --break-system-packages "mujoco==3.6.0" "trimesh&gt;=4,&lt;5" "pycollada&gt;=0.9,&lt;1"</pre></div>
+          <p class="note">공식 README의 버전 그대로입니다.<br>사용자 영역(<code>--user</code>)에 설치합니다.</p></div></li>
+        <li><div class="body"><h3>실행</h3>
+          <div class="code"><pre># 공식 launch (기본 world: pinky_factory)
+ros2 launch pinky_bringup bringup_sim.launch.xml viewer:=false
+
+# 이 패키지 launch (기본 world: nav2_practice, command_driver·RViz 포함)
+ros2 launch pinky_sim_examples mujoco_sim.launch.py
+ros2 launch pinky_sim_examples mujoco_sim.launch.py world_name:=twin_arena.world viewer:=true</pre></div>
+          <p class="note"><code>make_world</code>로 만든 world(상자·원기둥)는 MuJoCo도 그대로 읽습니다.<br><code>twin_arena</code>, <code>nav2_practice</code>로 확인했습니다.</p></div></li>
+        <li><div class="body"><h3>SLAM · Nav2 (Gazebo와 같은 명령)</h3>
+          <div class="code"><pre>ros2 launch pinky_navigation gz_map_building.launch.xml            # SLAM
+ros2 launch pinky_sim_examples mujoco_sim.launch.py driver:=false   # Nav2 쓸 때
+ros2 launch pinky_navigation gz_bringup_launch.xml \
+    map:=$(ros2 pkg prefix pinky_sim_examples)/share/pinky_sim_examples/maps/nav2_practice.yaml
+ros2 run pinky_sim_examples nav2_patrol</pre></div>
+          <p class="note">브리지가 Gazebo와 같은 <code>/clock</code>, <code>/odom</code>, <code>/tf</code>, <code>/scan</code>을 내서 <code>gz_*</code> launch를 고치지 않고 씁니다.</p></div></li>
+      </ol>
+      <div class="figure">
+        <h3><code>mujoco_sim.launch.py</code> 인자</h3>
+        <div class="tbl"><table>
+          <thead><tr><th>인자</th><th>기본값</th><th>뜻</th></tr></thead>
+          <tbody>
+            <tr><td><code>world_name</code></td><td><code>nav2_practice.world</code></td><td>이 패키지 → <code>pinky_gz_sim</code> → <code>pinky_mujoco</code> 순서로 찾음</td></tr>
+            <tr><td><code>world</code></td><td>(없음)</td><td>world 절대 경로</td></tr>
+            <tr><td><code>physics_config</code></td><td>(공식 값)</td><td>물리 설정 YAML(통째로 교체)</td></tr>
+            <tr><td><code>viewer</code></td><td><code>false</code></td><td>MuJoCo 창</td></tr>
+            <tr><td><code>camera</code></td><td><code>true</code></td><td><code>/camera/image_raw</code></td></tr>
+            <tr><td><code>use_gpu</code></td><td><code>false</code></td><td>GPU로 그리기</td></tr>
+            <tr><td><code>driver</code></td><td><code>true</code></td><td><code>command_driver</code>(Nav2 쓸 땐 끄기)</td></tr>
+            <tr><td><code>rviz</code></td><td><code>true</code></td><td>RViz</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <h3>이 패키지 기능이 MuJoCo에서도 되나</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>기능</th><th>MuJoCo</th><th>확인</th></tr></thead>
+      <tbody>
+        <tr><td>문장 명령 주행 (<code>command_driver</code>, <code>send</code>)</td><td>됨</td><td>"forward 1.0" → 장애물 0.20 m 앞에서 정지(정답 위치 x 0.394 m)</td></tr>
+        <tr><td><code>make_world</code>로 만든 world</td><td>됨</td><td><code>twin_arena</code>, <code>nav2_practice</code> 로딩</td></tr>
+        <tr><td>SLAM 지도 만들기·저장</td><td>됨</td><td><code>gz_map_building</code> + <code>map_saver_cli</code></td></tr>
+        <tr><td>Nav2 + <code>nav2_patrol</code></td><td>됨</td><td>G2 → G3 → G4 → G1 4/4 "성공"(아래 함정 참고)</td></tr>
+        <tr><td>카메라 저장 (공식 <code>tools/save_image.py</code>)</td><td>됨</td><td>640 × 360 저장</td></tr>
+        <tr><td><code>pose_error</code> (정답 위치 비교)</td><td>MuJoCo 전용</td><td>아래 실습</td></tr>
+        <tr><td><code>spawn_object</code> (실행 중 물체 추가)</td><td>안 됨</td><td>Gazebo 서비스를 씀</td></tr>
+        <tr><td>상자·원기둥 텍스처</td><td>무시됨</td><td>흰색으로 나옴(<a href="#world-mujoco">벽·물체 만들기의 MuJoCo 표</a>)</td></tr>
+        <tr><td>밀리는 물체(<code>static: false</code>)</td><td>고정됨</td><td>로봇이 캔에 막혀 0.268 m에서 정지</td></tr>
+        <tr><td>초음파·IMU·D455</td><td>안 됨</td><td>MuJoCo 브리지에 없음</td></tr>
+        <tr><td>가상 장치 패널의 Gazebo 램프 색</td><td>안 됨</td><td>Gazebo에 색을 보내는 방식이라. 패널 자체는 확인 안 함</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>실습: 정답 위치로 위치 추정 오차 재기</h3>
+    <p><code>/ground_truth</code>는 시뮬레이터가 아는 로봇의 실제 위치입니다.<br>실물에서는 알 수 없는 값이라 로봇이 스스로 추정한 위치(<code>/odom</code>, AMCL)가 얼마나 맞는지 시뮬레이션에서만 잴 수 있습니다.</p>
+    <div class="code"><pre># 터미널 1~2: MuJoCo + Nav2 (위 "SLAM · Nav2" 절)
+# 터미널 3: 1초마다 오차 출력, Ctrl+C 로 요약
+ros2 run pinky_sim_examples pose_error
+# 터미널 4
+ros2 run pinky_sim_examples nav2_patrol</pre></div>
+    <div class="code"><pre>주행  4.63 m | 정답 ( 1.09,  1.15) | odom   1.9 cm  0.8° | amcl   1.3 cm  0.3°
+주행  8.36 m | 정답 ( 0.69, -0.24) | odom  91.7 cm 81.8° | amcl  18.0 cm  9.9°
+--- 요약 (주행 8.62 m)
+odom : 평균 67.5 cm / 최대 142.9 cm, 방향 평균 72.3° / 최대 172.0° (159회)
+amcl : 평균 29.8 cm / 최대 73.5 cm, 방향 평균 25.4° / 최대 69.8° (159회)</pre></div>
+    <div class="checklist">
+      <div><div><b>잘 갈 때 (주행 8.2 m까지)</b><div class="note">G2 13.2 s · G3 14.9 s · G4 22.0 s</div></div><div><p>odom 오차 0.1~2.7 cm, AMCL 오차 0.3~23 cm였습니다(2회 모두 비슷).<br>시뮬레이션은 바퀴가 미끄러지지 않아 odom이 오히려 AMCL보다 정확합니다.<br>실물에서는 반대가 되는 경우가 많습니다.</p></div></div>
+      <div><div><b>함정: 지도에 없는 턱</b><div class="note">G4 → G1, 101.8 s, 2회 모두 재현</div></div><div><p>출발점으로 돌아오다 지도에 없는 낮은 턱(0.08 m) 모서리에 걸렸습니다.<br>바퀴가 헛돌아 odom 오차가 143 cm·172°까지 쌓였고, AMCL도 73 cm까지 어긋났습니다.<br>그런데 Nav2는 G1을 <b>"성공"</b>으로 보고했습니다.<br>정답 위치는 (0.73, −0.24)로, G1에서 약 <b>77 cm</b> 떨어져 있었습니다.<br>Nav2는 AMCL이 추정한 위치로 도착을 판단하기 때문입니다.</p></div></div>
+      <div><div><b>해 볼 것</b></div><div><p>턱(<code>low_step</code>)을 레이아웃에서 지우고 다시 돌려 오차를 비교합니다.<br><code>xy_goal_tolerance</code>를 줄여도 "성공"이 나오는지 봅니다.<br>미션 코드에서 "도착 성공" 뒤에 실제 위치를 한 번 더 확인하는 방법을 생각해 봅니다.</p></div></div>
+    </div>
+    <p class="note">Gazebo에서 같은 맵을 돌렸을 때는 경로가 턱을 피해 가서 이 현상이 나오지 않았습니다(G1 오차 0.05 m).<br>같은 맵이라도 시뮬레이터마다 경로와 결과가 달라질 수 있습니다.</p>
+
+    <h3>실습: 물리 설정 바꾸기</h3>
+    <p>MuJoCo 물리 값은 공식 <code>pinky_mujoco/config/mujoco.yaml</code>에 있습니다.<br>일부만 덮어쓰는 방식이 아니라 파일을 통째로 바꾸므로, 복사해서 고친 뒤 넘깁니다.</p>
+    <div class="code"><pre>cp $(ros2 pkg prefix pinky_mujoco)/share/pinky_mujoco/config/mujoco.yaml ~/my_mujoco.yaml
+# ~/my_mujoco.yaml 수정 후
+ros2 launch pinky_sim_examples mujoco_sim.launch.py physics_config:=$HOME/my_mujoco.yaml</pre></div>
+    <div class="tbl"><table>
+      <thead><tr><th>값</th><th>공식 기본값</th><th>뜻</th></tr></thead>
+      <tbody>
+        <tr><td><code>control.max_linear</code></td><td>0.25 m/s</td><td>직진 속도 상한. 0.10으로 바꾸자 0.25 m/s 명령에도 실제 속도가 0.099 m/s(정답 위치 기준)였습니다. 기본값에서는 0.247 m/s</td></tr>
+        <tr><td><code>motors.wheel_accel</code></td><td>74.9 rad/s²</td><td>실물 XL330 가속 설정(Profile Acceleration 200)을 옮긴 값</td></tr>
+        <tr><td><code>control.command_timeout</code></td><td>0.5 s</td><td>명령이 끊기면 멈추는 시간</td></tr>
+        <tr><td><code>contact.wheel_friction</code></td><td>1.2</td><td>바퀴 마찰. 줄이면 미끄러짐과 odom 오차가 늘어남(확인 안 함)</td></tr>
+        <tr><td><code>lidar.samples</code></td><td>360</td><td>라이다 점 개수</td></tr>
+        <tr><td><code>camera.width</code> · <code>fps</code></td><td>640 · 15</td><td>CPU로 그리면 자동으로 낮아짐(측정 약 5 Hz)</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note"><code>physics.timestep</code>과 <code>rates</code>는 서로 정수배여야 합니다.<br>맞지 않으면 브리지가 시작할 때 오류를 냅니다.</p>
+
+    <h3>공식 도구와 문제 해결</h3>
+    <div class="checklist">
+      <div><div><b>주행·정답 위치 점검</b><div class="note">공식 tools/</div></div><div class="code"><pre>python3 ~/pinky_pro/src/pinky_pro/pinky_mujoco/tools/drive_check.py</pre></div></div>
+      <div><div><b>카메라 한 장 저장</b></div><div class="code"><pre>python3 ~/pinky_pro/src/pinky_pro/pinky_mujoco/tools/save_image.py frame.png</pre></div></div>
+      <div><div><b>MuJoCo가 남아서 이상할 때</b></div><div class="code"><pre>bash ~/pinky_pro/src/pinky_pro/pinky_mujoco/tools/stop_sim.sh</pre></div></div>
+      <div><div><b>카메라가 느림</b><div class="note">CPU로 그리는 기본 설정</div></div><div><p>필요 없으면 <code>camera:=false</code>, GPU가 있으면 <code>use_gpu:=true</code>를 붙입니다.</p></div></div>
+      <div><div><b>world를 못 찾음</b></div><div><p><code>world_name</code>은 파일 이름만 씁니다.<br>다른 폴더의 파일은 <code>world:=/절대/경로.world</code>로 넘깁니다.</p></div></div>
+    </div>
+    <p class="note">검증 환경: WSL2 Ubuntu 24.04, ROS 2 Jazzy, MuJoCo 3.6.0, 2026-11-18.<br>Nav2 결과는 같은 설정으로 2회 돌린 값입니다.<br>MuJoCo 창(<code>viewer:=true</code>), <code>use_gpu:=true</code>, 공식 <code>drive_check.py</code>·<code>stop_sim.sh</code>는 이번에 실행해 보지 않았습니다.</p>
+  </section>
+
+  <!-- ================= 센서 시야 ================= -->
+  <section id="view" aria-labelledby="view-h">
+    <div class="sec-head">
+      <div class="eyebrow">측면도 · 실제 장착 치수</div>
+      <h2 id="view-h">센서는 어디를 보고 있나</h2>
+      <p>URDF에 적힌 장착 위치와 시야각으로 그렸습니다(바닥 기준, 가로·세로 같은 비율).<br>칩을 눌러 센서를 켜고 끄고 D455 높이·각도를 바꿔 스캔 대상이 화면에 들어오는지 보세요.</p>
+    </div>
+    <div class="figure">
+      <div class="controls" id="sensor-chips">
+        <button type="button" class="chip" data-s="lidar" aria-pressed="true" style="--c: var(--lidar)"><span class="dot"></span>라이다 0.125 m</button>
+        <button type="button" class="chip" data-s="camera" aria-pressed="true" style="--c: var(--camera)"><span class="dot"></span>전면 카메라</button>
+        <button type="button" class="chip" data-s="sonar" aria-pressed="true" style="--c: var(--sonar)"><span class="dot"></span>초음파</button>
+        <button type="button" class="chip" data-s="depth" aria-pressed="true" style="--c: var(--depth)"><span class="dot"></span>D455 (가정)</button>
+      </div>
+      <div class="controls">
+        <label class="slider" for="d455z">D455 높이 <code>d455_z</code> <input type="range" id="d455z" min="0.10" max="0.30" step="0.01" value="0.16"><output id="d455z-o">0.16</output></label>
+        <label class="slider" for="d455p">아래로 기울기 <code>d455_pitch_deg</code> <input type="range" id="d455p" min="0" max="40" step="1" value="15"><output id="d455p-o">15°</output></label>
+      </div>
+      <div class="svgbox"><svg id="side" viewBox="0 0 900 300" role="img" aria-label="Pinky 측면도와 센서 시야"></svg></div>
+      <div class="status" id="d455status" aria-live="polite"></div>
+      <p class="cap">D455 수직 시야는 640×360 해상도와 수평 87°에서 계산한 56.2°. 빗금 영역은 0.6 m보다 가까워 깊이가 안 찍히는 곳입니다.<br>스캔 대상은 <code>scan_room</code>의 탑(로봇 앞 0.8 m, 높이 0.30 m)입니다.</p>
+    </div>
+  </section>
+
+  <!-- ================= 센서 붙이기 ================= -->
+  <section id="sensors" aria-labelledby="sensors-h">
+    <div class="sec-head">
+      <div class="eyebrow">URDF · sensor · bridge</div>
+      <h2 id="sensors-h">센서 붙이기</h2>
+      <p>공식 URDF는 고치지 않고 <code>urdf/pinky_sim.urdf.xacro</code>에서 불러온 뒤 덧붙입니다.<br>센서마다 ①~④ 단계를 그대로 따라가면 됩니다.</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="센서 종류">
+      <button type="button" role="tab" id="t-camera" aria-controls="p-camera" aria-selected="true" style="--c: var(--camera)"><span class="dot"></span>카메라</button>
+      <button type="button" role="tab" id="t-depth" aria-controls="p-depth" aria-selected="false" tabindex="-1" style="--c: var(--depth)"><span class="dot"></span>포인트클라우드 (D455)</button>
+      <button type="button" role="tab" id="t-sonar" aria-controls="p-sonar" aria-selected="false" tabindex="-1" style="--c: var(--sonar)"><span class="dot"></span>초음파</button>
+      <button type="button" role="tab" id="t-imu" aria-controls="p-imu" aria-selected="false" tabindex="-1" style="--c: var(--imu)"><span class="dot"></span>IMU</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-camera" aria-labelledby="t-camera">
+      <p><span class="pill official">공식 기본 탑재</span> 이미 달려 있어서 켜기만 하면 됩니다.<br>새 카메라를 달 때 따라 할 본보기로 보세요.</p>
+      <div class="stage"><div class="lbl">① 장착<small>link + joint</small></div><div class="body">
+        <div class="code"><pre>&lt;!-- pinky_description/urdf/pinky.urdf.xacro --&gt;
+&lt;joint name="front_camera_mount_fixed_joint" type="fixed"&gt;
+  &lt;parent link="base_link"/&gt;
+  &lt;child link="front_camera_mount"/&gt;
+  &lt;origin xyz="0.020 0 0.0495" rpy="0 ${cam_tilt_deg/180*pi} 0"/&gt;   &lt;!-- 앞 2 cm, 위 5 cm, 아래로 cam_tilt_deg --&gt;
+&lt;/joint&gt;</pre></div>
+        <p class="note">기울기는 launch 인자 <code>cam_tilt_deg</code>(이 예제는 8°)로 바꿉니다.</p></div></div>
+      <div class="stage"><div class="lbl">② 센서<small>type="camera"</small></div><div class="body">
+        <div class="code"><pre>&lt;gazebo reference="front_camera_link"&gt;
+  &lt;sensor name="camera" type="camera"&gt;
+    &lt;camera&gt;
+      &lt;horizontal_fov&gt;1.1519&lt;/horizontal_fov&gt;          &lt;!-- 66° --&gt;
+      &lt;image&gt;&lt;width&gt;1280&lt;/width&gt;&lt;height&gt;720&lt;/height&gt;&lt;/image&gt;
+      &lt;clip&gt;&lt;near&gt;0.1&lt;/near&gt;&lt;far&gt;100&lt;/far&gt;&lt;/clip&gt;
+    &lt;/camera&gt;
+    &lt;update_rate&gt;30&lt;/update_rate&gt;
+    &lt;gz_frame_id&gt;front_camera_link&lt;/gz_frame_id&gt;
+  &lt;/sensor&gt;
+&lt;/gazebo&gt;</pre></div></div></div>
+      <div class="stage"><div class="lbl">③ 브리지<small>영상은 전용</small></div><div class="body">
+        <div class="code"><pre>ros2 run ros_gz_image image_bridge /camera/image_raw     # 영상 (launch_sim에 이미 있음)
+# camera_info 는 parameter_bridge YAML 에
+- ros_topic_name: "camera/camera_info"
+  gz_topic_name: "camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS</pre></div>
+        <p class="note">영상은 <code>ros_gz_image</code>로 넘기면 <code>compressed</code> 같은 image_transport 토픽도 함께 생깁니다.</p></div></div>
+      <div class="stage"><div class="lbl">④ 확인<small>실행해서 본 값</small></div><div class="body">
+        <div class="code"><pre>ros2 topic echo --once /camera/image_raw --field encoding     # rgb8
+ros2 topic echo --once /camera/image_raw --field header.frame_id   # front_camera_link
+ros2 run rqt_image_view rqt_image_view /camera/image_raw</pre></div>
+        <p class="note">2026-11-18 확인: <code>rgb8</code>, 1280 × 720, 프레임 <code>front_camera_link</code>.</p></div></div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-depth" aria-labelledby="t-depth" hidden>
+      <p><span class="pill virtual">가정 센서 · 실물 Pinky에 없음</span> RealSense D455를 올렸다고 가정한 예제입니다.<br><code>d455:=true</code>일 때만 붙습니다.</p>
+      <div class="code"><pre>ros2 launch pinky_sim_examples twin_arena.launch.py \
+    world_name:=scan_room.world gz_world:=scan_room d455:=true</pre></div>
+      <div class="stage"><div class="lbl">① 장착<small>기둥 + 몸체</small></div><div class="body">
+        <div class="code"><pre>&lt;link name="d455_link"&gt;
+  &lt;visual&gt;&lt;geometry&gt;&lt;box size="0.026 0.124 0.029"/&gt;&lt;/geometry&gt;&lt;/visual&gt;   &lt;!-- 124 x 26 x 29 mm --&gt;
+  &lt;collision&gt;&lt;geometry&gt;&lt;box size="0.026 0.124 0.029"/&gt;&lt;/geometry&gt;&lt;/collision&gt;
+  &lt;inertial&gt;&lt;mass value="0.39"/&gt; ... &lt;/inertial&gt;
+&lt;/link&gt;
+&lt;joint name="d455_joint" type="fixed"&gt;
+  &lt;parent link="d455_mast"/&gt;&lt;child link="d455_link"/&gt;
+  &lt;origin xyz="0 0 0.075" rpy="0 ${pitch} 0"/&gt;      &lt;!-- pitch + 면 아래를 봄 --&gt;
+&lt;/joint&gt;
+&lt;gazebo reference="d455_joint"&gt;&lt;disableFixedJointLumping&gt;true&lt;/disableFixedJointLumping&gt;&lt;/gazebo&gt;</pre></div>
+        <p class="note"><code>disableFixedJointLumping</code>이 없으면 Gazebo가 고정 링크를 부모에 합쳐 <code>d455_link</code> TF가 사라집니다.<br>위치·각도는 xacro 인자 <code>d455_x</code>, <code>d455_z</code>, <code>d455_pitch_deg</code>로 바꿉니다(위 측면도 슬라이더와 같은 값).</p></div></div>
+      <div class="stage"><div class="lbl">② 센서<small>rgbd_camera</small></div><div class="body">
+        <div class="code"><pre>&lt;gazebo reference="d455_link"&gt;
+  &lt;sensor name="d455" type="rgbd_camera"&gt;
+    &lt;topic&gt;d455&lt;/topic&gt;              &lt;!-- d455/image, depth_image, points, camera_info --&gt;
+    &lt;update_rate&gt;15&lt;/update_rate&gt;
+    &lt;gz_frame_id&gt;d455_link&lt;/gz_frame_id&gt;
+    &lt;camera&gt;
+      &lt;horizontal_fov&gt;1.5184&lt;/horizontal_fov&gt;              &lt;!-- 87° --&gt;
+      &lt;image&gt;&lt;width&gt;640&lt;/width&gt;&lt;height&gt;360&lt;/height&gt;&lt;/image&gt;
+      &lt;clip&gt;&lt;near&gt;0.6&lt;/near&gt;&lt;far&gt;6.0&lt;/far&gt;&lt;/clip&gt;
+      &lt;noise&gt;&lt;type&gt;gaussian&lt;/type&gt;&lt;mean&gt;0&lt;/mean&gt;&lt;stddev&gt;0.005&lt;/stddev&gt;&lt;/noise&gt;
+    &lt;/camera&gt;
+  &lt;/sensor&gt;
+&lt;/gazebo&gt;</pre></div>
+        <div class="tbl"><table>
+          <thead><tr><th>항목</th><th>D455 공개 사양</th><th>시뮬레이션 값</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>깊이 시야각</td><td>87° × 58°</td><td>수평 87°, 수직은 해상도 비율로 자동</td><td>Gazebo는 수평 FOV와 해상도만 받음</td></tr>
+            <tr><td>해상도</td><td>최대 1280 × 720</td><td>640 × 360</td><td>16:9 유지, 부하 1/4</td></tr>
+            <tr><td>주기</td><td>최대 90 fps</td><td>15 Hz</td><td>느린 PC 고려, 멈춰서 찍으면 충분</td></tr>
+            <tr><td>측정 거리</td><td>약 0.6 ~ 6 m</td><td><code>near 0.6</code>, <code>far 6.0</code></td><td>0.6 m보다 가까우면 안 찍힘</td></tr>
+          </tbody>
+        </table></div></div></div>
+      <div class="stage"><div class="lbl">③ 브리지<small>config/d455_bridge.yaml</small></div><div class="body">
+        <div class="code"><pre>- ros_topic_name: "d455/points"
+  gz_topic_name: "d455/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+# d455/image, d455/depth_image (Image), d455/camera_info (CameraInfo) 도 같은 형식</pre></div></div></div>
+      <div class="stage"><div class="lbl">④ 확인<small>측정값</small></div><div class="body">
+        <div class="code"><pre>ros2 topic echo --once /d455/points --field header
+ros2 run tf2_ros tf2_echo base_link d455_link</pre></div>
+        <p class="note">패키지 센서 튜토리얼 작업에서 측정(2026-11-18, WSL): 유효 점 약 98,000개, 가장 가까운 점 0.59 m(near 0.6 m에서 잘림), 좌표계 <code>d455_link</code>는 <b>x가 앞</b>. RViz에서 <b>D455 points (virtual)</b>를 체크하면 보입니다.</p></div></div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-sonar" aria-labelledby="t-sonar" hidden>
+      <p><span class="pill added">이 패키지에서 추가</span> 실물 Pinky에는 초음파가 있지만 공식 시뮬레이션에는 센서 정의가 없습니다.<br>좁은 라이다로 흉내 내고 실기와 같은 토픽으로 바꿔 냅니다.</p>
+      <div class="stage"><div class="lbl">① 장착<small>이미 있음</small></div><div class="body">
+        <p>공식 URDF의 <code>ultrasonic_link</code>(base_link 앞 2.7 cm, 위 0.9 cm)를 그대로 씁니다.<br>링크가 이미 있으면 ②부터 하면 됩니다.</p></div></div>
+      <div class="stage"><div class="lbl">② 센서<small>좁은 gpu_lidar</small></div><div class="body">
+        <div class="code"><pre>&lt;gazebo reference="ultrasonic_link"&gt;
+  &lt;sensor name="ultrasonic" type="gpu_lidar"&gt;
+    &lt;topic&gt;us_scan&lt;/topic&gt;
+    &lt;update_rate&gt;20&lt;/update_rate&gt;
+    &lt;lidar&gt;
+      &lt;scan&gt;
+        &lt;horizontal&gt;&lt;samples&gt;9&lt;/samples&gt;&lt;min_angle&gt;-0.13&lt;/min_angle&gt;&lt;max_angle&gt;0.13&lt;/max_angle&gt;&lt;/horizontal&gt;
+        &lt;vertical&gt;&lt;samples&gt;5&lt;/samples&gt;&lt;min_angle&gt;-0.13&lt;/min_angle&gt;&lt;max_angle&gt;0.13&lt;/max_angle&gt;&lt;/vertical&gt;
+      &lt;/scan&gt;
+      &lt;range&gt;&lt;min&gt;0.02&lt;/min&gt;&lt;max&gt;3.0&lt;/max&gt;&lt;/range&gt;   &lt;!-- 실기 field_of_view 0.26 rad, 0.02~3.0 m --&gt;
+    &lt;/lidar&gt;
+  &lt;/sensor&gt;
+&lt;/gazebo&gt;</pre></div></div></div>
+      <div class="stage"><div class="lbl">③ 브리지<small>+ 변환 노드</small></div><div class="body">
+        <p><code>us_scan</code>(LaserScan)을 브리지로 넘기고 <code>us_range</code> 노드가 최솟값을 골라 실기와 같은 <code>/us_sensor/range</code>(<code>sensor_msgs/Range</code>)로 냅니다.<br>Gazebo에는 Range 센서 타입이 없어서 쓰는 방법입니다.</p></div></div>
+      <div class="stage"><div class="lbl">④ 확인</div><div class="body">
+        <div class="code"><pre>ros2 topic echo --once /us_sensor/range --field range</pre></div>
+        <p class="note">측정: 0.687 m (대상 앞면까지 계산값 0.673 m).</p></div></div>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-imu" aria-labelledby="t-imu" hidden>
+      <p><span class="pill added">브리지만 추가</span> 공식 URDF에 IMU 센서가 있지만 공식 브리지 설정에 빠져 있어 ROS에서는 안 보였습니다.<br>③만 하면 되는 경우입니다.</p>
+      <div class="stage"><div class="lbl">① ② 확인만<small>이미 있음</small></div><div class="body">
+        <p>센서가 나오려면 world에 <code>gz-sim-imu-system</code> 플러그인이 있어야 합니다.<br><code>make_world</code>가 만든 world에는 들어 있습니다.</p>
+        <div class="code"><pre>gz topic -l | grep imu      # Gazebo 안에는 imu_raw 가 있다</pre></div></div></div>
+      <div class="stage"><div class="lbl">③ 브리지<small>config/sim_bridge.yaml</small></div><div class="body">
+        <div class="code"><pre>- ros_topic_name: "imu_raw"
+  gz_topic_name: "imu_raw"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS</pre></div></div></div>
+      <div class="stage"><div class="lbl">④ 확인</div><div class="body">
+        <div class="code"><pre>ros2 topic list | grep imu   # /imu_raw
+ros2 topic hz /imu_raw</pre></div>
+        <p class="note">2026-11-18 확인: <code>/imu_raw</code>가 ROS 토픽 목록에 나옵니다.</p></div></div>
+    </div>
+
+    <h3>자주 쓰는 브리지 타입 짝</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>센서</th><th>Gazebo sensor type</th><th>ROS 타입</th><th>Gazebo 타입</th></tr></thead>
+      <tbody>
+        <tr><td>2D/3D 라이다</td><td><code>gpu_lidar</code></td><td><code>sensor_msgs/msg/LaserScan</code></td><td><code>gz.msgs.LaserScan</code></td></tr>
+        <tr><td>포인트클라우드</td><td><code>rgbd_camera</code>, <code>depth_camera</code></td><td><code>sensor_msgs/msg/PointCloud2</code></td><td><code>gz.msgs.PointCloudPacked</code></td></tr>
+        <tr><td>영상</td><td><code>camera</code></td><td><code>sensor_msgs/msg/Image</code></td><td><code>gz.msgs.Image</code></td></tr>
+        <tr><td>카메라 정보</td><td><code>camera</code></td><td><code>sensor_msgs/msg/CameraInfo</code></td><td><code>gz.msgs.CameraInfo</code></td></tr>
+        <tr><td>IMU</td><td><code>imu</code></td><td><code>sensor_msgs/msg/Imu</code></td><td><code>gz.msgs.IMU</code></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= 안 나올 때 ================= -->
+  <section id="debug" aria-labelledby="debug-h">
+    <div class="sec-head">
+      <h2 id="debug-h">새 센서가 안 나올 때</h2>
+      <p>위에서부터 차례로 확인하면 어느 단계 문제인지 갈립니다.</p>
+    </div>
+    <div class="checklist">
+      <div><div><b>Gazebo 안에서 나오나?</b><div class="note">② 센서 또는 world 문제</div></div><div class="code"><pre>gz topic -l</pre></div></div>
+      <div><div><b>ROS로 넘어오나?</b><div class="note">③ 브리지 문제. 공식 IMU가 여기서 막혀 있었음</div></div><div class="code"><pre>ros2 topic list</pre></div></div>
+      <div><div><b>RViz에서 엉뚱한 곳에 보이나?</b><div class="note"><code>gz_frame_id</code>와 URDF 링크 이름, TF 확인</div></div><div class="code"><pre>ros2 run tf2_ros tf2_echo base_link &lt;센서_링크&gt;</pre></div></div>
+      <div><div><b>지도에 물체가 안 남나?</b><div class="note">라이다는 0.125 m 높이 한 줄만 봄. 물체 높이 확인</div></div><div class="code"><pre>ros2 topic echo --once /scan --field ranges</pre></div></div>
+    </div>
+  </section>
+
+  <!-- ================= 실물과 다른 점 ================= -->
+  <section id="real" aria-labelledby="real-h">
+    <div class="sec-head">
+      <h2 id="real-h">시뮬레이션과 실물이 다른 점</h2>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>항목</th><th>시뮬레이션</th><th>실물</th></tr></thead>
+      <tbody>
+        <tr><td>지도의 낮은 물체</td><td>라이다 평면 아래는 빠짐</td><td>같음. 낮은 턱·박스는 Nav2 장애물에서도 빠짐</td></tr>
+        <tr><td>깊이 노이즈</td><td>고정 가우시안</td><td>거리에 따라 커지고 모서리·반사면에 구멍</td></tr>
+        <tr><td>포인트클라우드 좌표</td><td><code>d455_link</code>, x가 앞</td><td>RealSense 드라이버는 광학 프레임(z가 앞)</td></tr>
+        <tr><td>로봇 위치</td><td>odom이 거의 정확</td><td>바퀴 미끄러짐으로 오차 누적</td></tr>
+        <tr><td>바퀴 반경</td><td>0.028 m</td><td>0.027 m (거리 약 3.7% 차이)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="unsure">
+      <b>아직 확인하지 못한 것</b>
+      <ul>
+        <li>Nav2는 Nav2 실습장 맵에서만 실행해 봤습니다. 기본 경기장 지도로 Nav2를 돌려 보지는 않았습니다.</li>
+        <li>Nav2 시험 결과는 WSL에서 각 설정당 1~2회 돌린 값이라, 같은 목표도 실행마다 경로가 달라질 수 있습니다(좁은 틈이 그 예).</li>
+        <li>D455와 초음파 측정값은 같은 패키지의 센서 튜토리얼 작업에서 잰 값이고 이 페이지를 만들며 다시 재지 않았습니다.</li>
+        <li>D455 무게(0.39 kg)가 실물 Pinky 주행에 주는 영향은 시뮬레이션으로 알 수 없습니다.</li>
+        <li>실물 Pinky와의 연결과 실물 센서 값은 시험하지 않았습니다. 자세한 목록은 패키지의 <code>NOTES_미확인사항.md</code>에 있습니다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>기준: Windows 11 + WSL2 Ubuntu 24.04, ROS 2 Jazzy, Gazebo Harmonic (gz-sim 8.10), pinklab-art/pinky_pro (2026-11-18). 지도는 같은 날 이 환경에서 직접 생성한 결과입니다.</footer>
+</div>
+
+<script>
+(function () {
+  // ---------- 목차: 지금 보고 있는 섹션 강조 ----------
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var secs = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+    var nav = document.querySelector('nav.toc'), current = null;
+    function update() {
+      var idx = -1;
+      secs.forEach(function (sec, i) { if (sec && sec.getBoundingClientRect().top <= 140) idx = i; });
+      if (idx === current) return;
+      current = idx;
+      links.forEach(function (a, i) { if (i === idx) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
+      var on = links[idx];
+      if (nav.scrollWidth > nav.clientWidth) nav.scrollTo({ left: on ? on.offsetLeft - 16 : 0, behavior: 'smooth' });   // 가로 줄이면 강조 칩이 보이게(맨 위면 처음으로)
+    }
+    addEventListener('scroll', update, { passive: true });
+    addEventListener('resize', update);
+    update();
+  })();
+
+  // ---------- 코드 복사 ----------
+  document.querySelectorAll('.code').forEach(function (box) {
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'copy'; btn.textContent = '복사';
+    btn.addEventListener('click', function () {
+      var text = box.querySelector('pre').innerText;
+      var done = function () { btn.textContent = '복사됨'; btn.classList.add('done'); setTimeout(function () { btn.textContent = '복사'; btn.classList.remove('done'); }, 1400); };
+      var fallback = function () { var r = document.createRange(); r.selectNodeContents(box.querySelector('pre')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Ctrl+C'; };
+      try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+    });
+    box.appendChild(btn);
+  });
+
+  // ---------- 탭 ----------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role=tab]'));
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on); t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { select(t); });
+    t.addEventListener('keydown', function (e) {
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (d) { var n = tabs[(i + d + tabs.length) % tabs.length]; select(n); n.focus(); e.preventDefault(); }
+    });
+  });
+
+  var NS = 'http://www.w3.org/2000/svg';
+
+  // ---------- 레이아웃 한 줄 -> SDF (pinky_sim_examples/world_builder.py 와 같은 규칙) ----------
+  (function builder() {
+    var $ = function (id) { return document.getElementById(id); };
+    var num = function (id) { var v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+    var f4 = function (v) { return (Math.abs(v) < 5e-5 ? 0 : v).toFixed(4); };
+    var g = function (v) { return String(+v.toFixed(4)); };   // YAML/명령용 짧은 숫자
+    var DEFAULT_HEX = '#8ca1ab';   // world_builder DEFAULT_COLOR (0.55, 0.63, 0.67)
+    var prev = $('b-prev');
+
+    // 색·텍스처: make_world 와 같은 규칙. 색을 안 바꾸면 기본색, 텍스처만 주면 흰색(1.0)
+    function look() {
+      var hex = $('b-color').value.toLowerCase(), tex = $('b-tex').value.trim();
+      var custom = hex !== DEFAULT_HEX;
+      var rgb = [1, 3, 5].map(function (i) { return +(parseInt(hex.substr(i, 2), 16) / 255).toFixed(2); });
+      var sdfColor = custom ? rgb.join(' ') : (tex ? '1.0 1.0 1.0' : '0.55 0.63 0.67');
+      var yaml = (custom ? ', color: [' + rgb.join(', ') + ']' : '') + (tex ? ', texture: ' + tex : '');
+      var spawn = (custom ? ' --color ' + rgb.join(' ') : '') + (tex ? ' --texture ' + tex : '');
+      return { sdfColor: sdfColor, yaml: yaml, spawn: spawn, tex: tex, fill: custom || !tex ? hex : '#ffffff' };
+    }
+
+    function shape() {
+      var L = look();
+      var s = shape0();
+      s.yaml = s.yaml.replace(/\}$/, L.yaml + '}');
+      s.spawn = s.spawn.replace(/ --name /, L.spawn + ' --name ');
+      s.color = L.sdfColor; s.tex = L.tex; s.fill = L.fill;
+      return s;
+    }
+
+    function shape0() {
+      var t = $('b-type').value, name = ($('b-name').value || t + '_0').replace(/[^A-Za-z0-9_\-]/g, '_');
+      if (t === 'wall') {
+        var x1 = num('b-x1'), y1 = num('b-y1'), x2 = num('b-x2'), y2 = num('b-y2');
+        var len = Math.hypot(x2 - x1, y2 - y1), th = num('b-th'), h = num('b-wh');
+        return { t: t, name: name, kind: 'box', x: (x1 + x2) / 2, y: (y1 + y2) / 2, z: h / 2,
+          yaw: Math.atan2(y2 - y1, x2 - x1), size: [len, th, h], stat: true, bad: len <= 0 ? 'from 과 to 가 같습니다' : '',
+          yaml: '- {name: ' + name + ', type: wall, from: [' + g(x1) + ', ' + g(y1) + '], to: [' + g(x2) + ', ' + g(y2) + '], thickness: ' + g(th) + ', height: ' + g(h) + '}',
+          spawn: 'ros2 run pinky_sim_examples spawn_object wall --from ' + g(x1) + ' ' + g(y1) + ' --to ' + g(x2) + ' ' + g(y2) + ' --thickness ' + g(th) + ' --height ' + g(h) + ' --name ' + name };
+      }
+      var ax = num('b-ax'), ay = num('b-ay');
+      if (t === 'box') {
+        var sx = num('b-sx'), sy = num('b-sy'), sz = num('b-sz'), yd = num('b-yaw');
+        return { t: t, name: name, kind: 'box', x: ax, y: ay, z: sz / 2, yaw: yd * Math.PI / 180, size: [sx, sy, sz], stat: true,
+          yaml: '- {name: ' + name + ', type: box, size: [' + g(sx) + ', ' + g(sy) + ', ' + g(sz) + '], at: [' + g(ax) + ', ' + g(ay) + ']' + (yd ? ', yaw: ' + g(yd) : '') + '}',
+          spawn: 'ros2 run pinky_sim_examples spawn_object box --size ' + g(sx) + ' ' + g(sy) + ' ' + g(sz) + ' --at ' + g(ax) + ' ' + g(ay) + (yd ? ' --yaw ' + g(yd) : '') + ' --name ' + name };
+      }
+      var r = num('b-r'), h2 = num('b-ch'), stat = $('b-dyn').value === 'true';
+      return { t: t, name: name, kind: 'cylinder', x: ax, y: ay, z: h2 / 2, yaw: 0, size: [r, h2], stat: stat,
+        yaml: '- {name: ' + name + ', type: cylinder, radius: ' + g(r) + ', height: ' + g(h2) + ', at: [' + g(ax) + ', ' + g(ay) + ']' + (stat ? '' : ', static: false, mass: 1.0') + '}',
+        spawn: 'ros2 run pinky_sim_examples spawn_object cylinder --radius ' + g(r) + ' --height ' + g(h2) + ' --at ' + g(ax) + ' ' + g(ay) + (stat ? '' : ' --dynamic') + ' --name ' + name };
+    }
+
+    function sdf(s) {
+      var geom = s.kind === 'box'
+        ? '<box><size>' + s.size.map(f4).join(' ') + '</size></box>'
+        : '<cylinder><radius>' + f4(s.size[0]) + '</radius><length>' + f4(s.size[1]) + '</length></cylinder>';
+      var out = ['<model name="' + s.name + '">', '  <static>' + s.stat + '</static>',
+        '  <pose>' + [s.x, s.y, s.z].map(f4).join(' ') + ' 0 0 ' + f4(s.yaw) + '</pose>', '  <link name="link">'];
+      if (!s.stat) {
+        var m = 1.0, r = s.size[0], h = s.size[1], ixx = m * (3 * r * r + h * h) / 12;
+        out.push('    <inertial><mass>1.0</mass><inertia><ixx>' + ixx.toFixed(6) + '</ixx><iyy>' + ixx.toFixed(6) + '</iyy><izz>' + (m * r * r / 2).toFixed(6) + '</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>');
+      }
+      out.push('    <collision name="collision"><geometry>' + geom + '</geometry></collision>',
+        '    <visual name="visual"><geometry>' + geom + '</geometry>',
+        '      <material><ambient>' + s.color + ' 1</ambient><diffuse>' + s.color + ' 1</diffuse>' +
+          (s.tex ? '<pbr><metal><albedo_map>' + s.tex.replace(/[<>&"]/g, '') + '</albedo_map></metal></pbr>' : '') + '</material>',
+        '    </visual>', '  </link>', '</model>');
+      return out.join('\n');
+    }
+
+    // 위에서 본 미리보기: x -0.6~1.4, y -0.65~0.65 (200 px/m)
+    function P(x, y) { return [(x + 0.6) * 200, (0.65 - y) * 200]; }
+    function preview(s) {
+      while (prev.firstChild) prev.removeChild(prev.firstChild);
+      var add = function (tag, a) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); prev.appendChild(e); return e; };
+      for (var gx = -0.5; gx <= 1.4; gx += 0.5) { var p = P(gx, 0); add('line', { x1: p[0], y1: 0, x2: p[0], y2: 260, stroke: 'var(--line)' }); }
+      for (var gy = -0.5; gy <= 0.5; gy += 0.5) { var q = P(0, gy); add('line', { x1: 0, y1: q[1], x2: 400, y2: q[1], stroke: 'var(--line)' }); }
+      var o = P(0, 0);
+      add('path', { d: 'M ' + (o[0] + 12) + ' ' + o[1] + ' L ' + (o[0] - 8) + ' ' + (o[1] - 8) + ' L ' + (o[0] - 8) + ' ' + (o[1] + 8) + ' Z', fill: 'var(--accent)' });
+      var lbl = add('text', { x: o[0] - 6, y: o[1] + 24, 'font-size': 11, fill: 'var(--muted)', 'text-anchor': 'middle' }); lbl.textContent = '로봇 (0,0) → +X';
+      var c = P(s.x, s.y), edge = s.z * 2 > 0.125 ? 'var(--lidar)' : 'var(--depth)';
+      if (s.kind === 'box') {
+        add('rect', { x: c[0] - s.size[0] * 100, y: c[1] - s.size[1] * 100, width: Math.max(s.size[0] * 200, 1), height: Math.max(s.size[1] * 200, 1),
+          fill: s.fill, stroke: edge, 'stroke-width': 2, 'stroke-dasharray': s.tex ? '4 3' : 'none',
+          transform: 'rotate(' + (-s.yaw * 180 / Math.PI) + ' ' + c[0] + ' ' + c[1] + ')' });
+      } else {
+        add('circle', { cx: c[0], cy: c[1], r: Math.max(s.size[0] * 200, 1), fill: s.fill, stroke: edge, 'stroke-width': 2,
+          'stroke-dasharray': s.tex ? '4 3' : 'none' });
+      }
+      var h = s.kind === 'box' ? s.size[2] : s.size[1];
+      var t = add('text', { x: 8, y: 18, 'font-size': 12, fill: h > 0.125 ? 'var(--lidar)' : 'var(--depth)', 'font-weight': 600 });
+      t.textContent = h > 0.125 ? '높이 ' + g(h) + ' m: 라이다에 보임' : '높이 ' + g(h) + ' m: 라이다(0.125 m)보다 낮아 안 보임';
+    }
+
+    function update() {
+      var t = $('b-type').value;
+      document.querySelectorAll('.form [data-for]').forEach(function (row) { row.hidden = row.dataset.for.split(' ').indexOf(t) < 0; });
+      var s = shape();
+      $('b-yaml').textContent = s.yaml;
+      $('b-sdf').textContent = s.bad ? '# ' + s.bad : sdf(s);
+      $('b-spawn').textContent = s.spawn;
+      preview(s);
+    }
+    document.querySelectorAll('.form input, .form select').forEach(function (e) { e.addEventListener('input', update); });
+    update();
+  })();
+
+  // ---------- 지도 + 레이아웃 겹치기 (레이아웃 좌표, y는 뒤집어 그림) ----------
+  var lay = document.getElementById('layoutsvg');
+  function rect(x, y, w, d, kind) {           // (x,y) 중심, w=X폭, d=Y깊이 (레이아웃 좌표)
+    var r = document.createElementNS(NS, 'rect');
+    r.setAttribute('x', x - w / 2); r.setAttribute('y', -(y + d / 2));
+    r.setAttribute('width', w); r.setAttribute('height', d);
+    r.setAttribute('fill', kind === 'low' ? 'var(--depth)' : 'var(--lidar)');
+    r.setAttribute('fill-opacity', '0.75');
+    lay.appendChild(r);
+  }
+  function wall(x1, y1, x2, y2, t) {
+    rect((x1 + x2) / 2, (y1 + y2) / 2, Math.max(Math.abs(x2 - x1), t), Math.max(Math.abs(y2 - y1), t), 'wall');
+  }
+  wall(-0.02, 0.01, 2.02, 0.01, 0.02); wall(-0.01, 0, -0.01, -1.5, 0.02); wall(2.01, 0, 2.01, -1.5, 0.02); wall(-0.02, -1.51, 2.02, -1.51, 0.02);
+  wall(0.6, 0, 0.6, -0.75, 0.012); wall(1.2, 0, 1.2, -0.75, 0.012);
+  [0.3, 0.9, 1.6].forEach(function (x) { rect(x, -0.14, 0.18, 0.2, 'low'); });
+  rect(1.4, -1.375, 0.08, 0.2, 'wall');
+  var can = document.createElementNS(NS, 'circle');
+  can.setAttribute('cx', 0.45); can.setAttribute('cy', 1.1); can.setAttribute('r', 0.03);
+  can.setAttribute('fill', 'var(--lidar)'); can.setAttribute('fill-opacity', '0.75'); lay.appendChild(can);
+  var start = document.createElementNS(NS, 'path');   // 출발 위치·방향 (+X)
+  start.setAttribute('d', 'M 0.86 1.375 L 0.76 1.335 L 0.76 1.415 Z');
+  start.setAttribute('fill', 'var(--accent)'); lay.appendChild(start);
+
+  var img = document.getElementById('mapimg');
+  var modes = { 'mv-map': [1, 0], 'mv-both': [0.55, 1], 'mv-layout': [0, 1] };
+  Object.keys(modes).forEach(function (id) {
+    document.getElementById(id).addEventListener('click', function () {
+      Object.keys(modes).forEach(function (k) { document.getElementById(k).setAttribute('aria-pressed', k === id); });
+      img.style.opacity = modes[id][0]; lay.style.opacity = modes[id][1];
+    });
+  });
+  img.style.opacity = 0.55;
+
+  // ---------- Nav2 실습장 표시 (Gazebo 좌표, y 는 뒤집어 그림) ----------
+  (function () {
+    var s = document.getElementById('nav2svg');
+    if (!s) return;
+    var add = function (tag, a) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); s.appendChild(e); return e; };
+    add('rect', { x: 0.45, y: 0.2, width: 0.2, height: 0.2, fill: 'none', stroke: 'var(--depth)', 'stroke-width': 0.025, 'stroke-dasharray': '0.04 0.03' });
+    add('rect', { x: 0.3, y: -0.73, width: 0.8, height: 0.06, fill: 'var(--lidar)', 'fill-opacity': 0.55 });
+    add('rect', { x: 2.0, y: -0.73, width: 0.2, height: 0.06, fill: 'var(--lidar)', 'fill-opacity': 0.55 });
+    [['G1', 0, 0], ['G2', -0.1, 1.4], ['G3', 2.2, 1.1], ['G4', 2.3, -0.3], ['G5', 0.55, -0.3]].forEach(function (g) {
+      add('circle', { cx: g[1], cy: -g[2], r: 0.07, fill: 'var(--accent)', 'fill-opacity': 0.9 });
+      var t = add('text', { x: g[1], y: -g[2] + 0.025, 'font-size': 0.075, 'text-anchor': 'middle', fill: 'var(--panel)', 'font-weight': 700, 'font-family': 'var(--font-mono)' });
+      t.textContent = g[0];
+    });
+  })();
+
+  // ---------- 측면도 ----------
+  var svg = document.getElementById('side');
+  var W = 900, H = 300, PADL = 40, PADB = 34, X0 = -0.15, XMAX = 1.25, ZMAX = 0.40;
+  var S = (W - PADL - 16) / (XMAX - X0);
+  function X(x) { return PADL + (x - X0) * S; }
+  function Z(z) { return H - PADB - z * S; }
+  var on = { lidar: true, camera: true, sonar: true, depth: true };
+  var css = getComputedStyle(document.documentElement);
+
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e); return e;
+  }
+  function text(x, y, s, attrs) {
+    var t = el('text', Object.assign({ x: x, y: y, 'font-size': 12, fill: 'var(--muted)', 'font-family': 'var(--font-body)' }, attrs || {}));
+    t.textContent = s; return t;
+  }
+  // 광선을 그림 영역(바닥 위, XMAX 안, ZMAX 아래)에서 자른 끝점
+  function ray(x0, z0, deg, len) {
+    var a = deg * Math.PI / 180, dx = Math.cos(a), dz = Math.sin(a), t = len;
+    if (dz < 0) t = Math.min(t, -z0 / dz);
+    if (dz > 0) t = Math.min(t, (ZMAX - z0) / dz);
+    if (dx > 0) t = Math.min(t, (XMAX - x0) / dx);
+    return [x0 + dx * t, z0 + dz * t];
+  }
+  function wedge(x0, z0, center, half, len, color, opacity) {
+    var top = ray(x0, z0, center + half, len), bot = ray(x0, z0, center - half, len);
+    var pts = [[x0, z0], top];
+    if (Math.abs(top[0] - XMAX) < 1e-6 && Math.abs(bot[1]) < 1e-6) pts.push([XMAX, 0]);
+    if (Math.abs(top[1] - ZMAX) < 1e-6 && Math.abs(bot[0] - XMAX) < 1e-6) pts.push([XMAX, ZMAX]);
+    pts.push(bot);
+    el('polygon', { points: pts.map(function (p) { return X(p[0]) + ',' + Z(p[1]); }).join(' '), fill: color, 'fill-opacity': opacity, stroke: color, 'stroke-opacity': 0.8, 'stroke-width': 1 });
+  }
+
+  function draw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var defs = el('defs', {});
+    var pat = el('pattern', { id: 'hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, defs);
+    el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: 'var(--depth)', 'stroke-width': 2 }, pat);
+
+    // 눈금
+    for (var gx = 0; gx <= 1.2001; gx += 0.2) {
+      el('line', { x1: X(gx), y1: Z(0), x2: X(gx), y2: Z(0) + 5, stroke: 'var(--muted)' });
+      text(X(gx), Z(0) + 19, gx.toFixed(1) + ' m', { 'text-anchor': 'middle', 'font-size': 11 });
+    }
+    [0.1, 0.2, 0.3].forEach(function (gz) {
+      el('line', { x1: PADL - 4, y1: Z(gz), x2: PADL, y2: Z(gz), stroke: 'var(--muted)' });
+      text(PADL - 7, Z(gz) + 4, gz.toFixed(1), { 'text-anchor': 'end', 'font-size': 11 });
+    });
+
+    // 물체: 선반, 스캔 대상, 벽
+    el('rect', { x: X(0.36), y: Z(0.11), width: 0.18 * S, height: 0.11 * S, fill: 'var(--obj)', stroke: 'var(--muted)', 'stroke-width': 1 });
+    text(X(0.45), Z(0.11) - 6, '선반 0.11 m', { 'text-anchor': 'middle' });
+    el('rect', { x: X(0.70), y: Z(0.12), width: 0.20 * S, height: 0.12 * S, fill: 'var(--obj)', stroke: 'var(--muted)', 'stroke-width': 1 });
+    el('rect', { x: X(0.76), y: Z(0.30), width: 0.08 * S, height: 0.30 * S, fill: 'var(--obj)', stroke: 'var(--muted)', 'stroke-width': 1 });
+    text(X(0.80), Z(0.30) - 6, '스캔 대상 0.30 m', { 'text-anchor': 'middle' });
+    el('rect', { x: X(1.12), y: Z(0.25), width: 0.03 * S, height: 0.25 * S, fill: 'var(--obj)', stroke: 'var(--muted)', 'stroke-width': 1 });
+    text(X(1.135), Z(0.25) - 6, '벽 0.25 m', { 'text-anchor': 'middle' });
+
+    // 센서 시야 (뒤에서 앞으로)
+    var dz = parseFloat(document.getElementById('d455z').value);
+    var dp = parseFloat(document.getElementById('d455p').value);
+    var DH = 0.028 + dz + 0.015;              // base_link 높이 + d455_z + 몸체 오프셋
+    var DX = 0.03, VHALF = 28.1, NEAR = 0.6;
+    if (on.depth) {
+      wedge(DX, DH, -dp, VHALF, 1.6, 'var(--depth)', 0.13);
+      var a = -dp * Math.PI / 180, ux = Math.cos(a), uz = Math.sin(a), px = -uz, pz = ux, hw = NEAR * Math.tan(VHALF * Math.PI / 180);
+      var n1 = [DX + ux * NEAR + px * hw, DH + uz * NEAR + pz * hw], n2 = [DX + ux * NEAR - px * hw, DH + uz * NEAR - pz * hw];
+      el('polygon', { points: [[DX, DH], n1, n2].map(function (p) { return X(p[0]) + ',' + Z(Math.max(p[1], -0.2)); }).join(' '), fill: 'url(#hatch)', 'fill-opacity': 0.5 });
+      el('line', { x1: X(n1[0]), y1: Z(n1[1]), x2: X(n2[0]), y2: Z(n2[1]), stroke: 'var(--depth)', 'stroke-width': 1.5, 'stroke-dasharray': '4 3' });
+    }
+    if (on.camera) wedge(0.035, 0.065, -8, 20.05, 1.6, 'var(--camera)', 0.12);
+    if (on.sonar) wedge(0.027, 0.037, 0, 7.4, 1.6, 'var(--sonar)', 0.22);
+    if (on.lidar) {
+      el('line', { x1: X(X0 + 0.02), y1: Z(0.125), x2: X(XMAX), y2: Z(0.125), stroke: 'var(--lidar)', 'stroke-width': 2, 'stroke-dasharray': '7 4' });
+      text(X(XMAX) - 4, Z(0.125) - 6, '라이다 평면 0.125 m: 이 아래는 지도에 안 남음', { 'text-anchor': 'end', fill: 'var(--lidar)', 'font-weight': 600 });
+    }
+
+    // 바닥
+    el('line', { x1: PADL, y1: Z(0), x2: W - 8, y2: Z(0), stroke: 'var(--muted)', 'stroke-width': 1.5 });
+
+    // Pinky 몸체(대략) + 바퀴 + 라이다 + 센서 위치
+    el('rect', { x: X(-0.076), y: Z(0.095), width: 0.118 * S, height: 0.075 * S, rx: 6, fill: 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 1.5 });
+    el('circle', { cx: X(0), cy: Z(0.028), r: 0.028 * S, fill: 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 1.5 });
+    el('rect', { x: X(-0.037), y: Z(0.135), width: 0.04 * S, height: 0.04 * S, rx: 3, fill: 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 1.5 });
+    if (on.depth) {
+      el('line', { x1: X(DX), y1: Z(0.095), x2: X(DX), y2: Z(DH), stroke: 'var(--ink)', 'stroke-width': 2 });
+      el('rect', { x: X(DX) - 7, y: Z(DH) - 6, width: 14, height: 12, rx: 2, fill: 'var(--depth)', transform: 'rotate(' + dp + ' ' + X(DX) + ' ' + Z(DH) + ')' });
+    }
+    [['camera', 0.035, 0.065], ['sonar', 0.027, 0.037], ['lidar', -0.017, 0.125]].forEach(function (s) {
+      if (on[s[0]]) el('circle', { cx: X(s[1]), cy: Z(s[2]), r: 3.5, fill: 'var(--' + s[0] + ')' });
+    });
+    text(X(-0.017), Z(0) + 19, 'Pinky', { 'text-anchor': 'middle', fill: 'var(--ink)', 'font-weight': 600, 'font-size': 11 });
+
+    // D455 상태: 스캔 대상(x 0.80, 높이 0~0.30)이 시야·측정거리 안에 드나
+    var st = document.getElementById('d455status');
+    var tx = 0.80 - 0.04 - DX;   // 대상 앞면까지 수평거리
+    var ang = function (z) { return Math.atan2(z - DH, tx) * 180 / Math.PI; };
+    var lo = -dp - VHALF, hi = -dp + VHALF;
+    var topIn = ang(0.30) <= hi && ang(0.30) >= lo, baseIn = ang(0.0) >= lo;
+    var depthAlongAxis = tx * Math.cos(dp * Math.PI / 180) + (0.15 - DH) * Math.sin(-dp * Math.PI / 180);
+    var msg = 'D455 높이(바닥 기준) <b>' + DH.toFixed(3) + ' m</b>, 시야 ' + lo.toFixed(1) + '° ~ ' + hi.toFixed(1) + '°. 스캔 대상: ';
+    msg += topIn ? '<b class="good">꼭대기 보임</b>' : '<b class="bad">꼭대기 잘림</b>';
+    msg += ', ' + (baseIn ? '<b class="good">바닥까지 보임</b>' : '<b class="bad">아랫부분 잘림</b>');
+    msg += ', 광축 거리 약 ' + depthAlongAxis.toFixed(2) + ' m ' + (depthAlongAxis >= NEAR ? '<b class="good">(0.6 m 이상, 측정됨)</b>' : '<b class="bad">(0.6 m 미만, 안 찍힘)</b>');
+    st.innerHTML = on.depth ? msg : 'D455 시야를 켜면 스캔 대상이 화면에 들어오는지 계산해 보여 줍니다.';
+  }
+
+  document.querySelectorAll('#sensor-chips .chip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      var k = c.dataset.s; on[k] = !on[k]; c.setAttribute('aria-pressed', on[k]); draw();
+    });
+  });
+  ['d455z', 'd455p'].forEach(function (id) {
+    var inp = document.getElementById(id), out = document.getElementById(id + '-o');
+    inp.addEventListener('input', function () { out.textContent = id === 'd455p' ? inp.value + '°' : parseFloat(inp.value).toFixed(2); draw(); });
+  });
+  draw();
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', draw);
+  }
+})();
+</script>
+</body>
+</html>

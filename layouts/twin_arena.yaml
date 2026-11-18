@@ -1,0 +1,40 @@
+# 기본 경기장 레이아웃 (2.0 m x 1.5 m, 칸막이 2개, 선반 3개)
+#
+# 레이아웃 좌표
+#   - 원점: 뒤쪽 왼쪽 바닥 모서리, +X 오른쪽, +Y 뒤쪽 벽 방향
+#   - 바닥: X = [0, 2.0], Y = [-1.5, 0]
+# box 는 "바닥 중심 + 크기"로 적는다: size: [X폭, Y깊이, 높이], at: [x, y]
+#
+# Gazebo는 로봇을 (0, 0)에 소환한다(pinky_gz_sim launch_sim.launch.xml).
+# 그래서 origin 에 앞쪽 통로의 출발점(0.8, -1.375)을 넣어 그 점을 Gazebo 원점으로 옮긴다.
+# 로봇은 그 자리에서 +X(yaw 0)를 보고 시작한다.
+
+world_name: twin_arena
+origin: [0.8, -1.375]
+
+# 라이다(rplidar_link)는 바닥에서 약 0.125 m 높이에 있다.
+# 그보다 낮은 물체는 /scan 에 보이지 않는다. 벽은 넉넉히 0.25 m로 만들었다.
+wall_height: 0.25
+
+objects:
+  # ---- 바깥 벽 ----
+  - {name: wall_back,  type: wall, from: [-0.02, 0.01],  to: [2.02, 0.01],  thickness: 0.02}
+  - {name: wall_left,  type: wall, from: [-0.01, 0.0],   to: [-0.01, -1.5], thickness: 0.02}
+  - {name: wall_right, type: wall, from: [2.01, 0.0],    to: [2.01, -1.5],  thickness: 0.02}
+  - {name: wall_front, type: wall, from: [-0.02, -1.51], to: [2.02, -1.51], thickness: 0.02}
+
+  # ---- 칸막이 2개 (x = 0.6, 1.2, 뒤쪽 벽에서 0.75 m) ----
+  - {name: partition_1, type: wall, from: [0.6, 0.0], to: [0.6, -0.75], thickness: 0.01, color: [0.50, 0.58, 0.62]}
+  - {name: partition_2, type: wall, from: [1.2, 0.0], to: [1.2, -0.75], thickness: 0.01, color: [0.50, 0.58, 0.62]}
+
+  # ---- 선반 3개 (0.18 x 0.2 x 0.11 m) ----
+  # 높이 0.11 m < 라이다 0.125 m -> RViz /scan 에 안 잡힌다. 일부러 남겨 둔 관찰 포인트.
+  - {name: shelf_1, type: box, size: [0.18, 0.2, 0.11], at: [0.3, -0.14], color: [0.80, 0.85, 0.87]}
+  - {name: shelf_2, type: box, size: [0.18, 0.2, 0.11], at: [0.9, -0.14], color: [0.80, 0.85, 0.87]}
+  - {name: shelf_3, type: box, size: [0.18, 0.2, 0.11], at: [1.6, -0.14], color: [0.80, 0.85, 0.87]}
+
+  # ---- 실습용 장애물 ----
+  # 출발점에서 +X 로 0.6 m 앞. "forward 1.0" 을 보내면 이 앞에서 멈춘다.
+  - {name: demo_obstacle, type: box, size: [0.08, 0.20, 0.20], at: [1.4, -1.375], color: [0.90, 0.45, 0.35]}
+  # 밀리는 물체(static: false). 로봇이 밀면 움직인다.
+  - {name: pushable_can, type: cylinder, radius: 0.03, height: 0.16, at: [0.45, -1.1], static: false, mass: 0.1, color: [0.35, 0.55, 0.85]}

@@ -1,0 +1,65 @@
+# Nav2 실습장 (3.0 m x 2.4 m, 방 2개)
+#
+#   ros2 run pinky_sim_examples make_world layouts/nav2_practice.yaml -o worlds/nav2_practice.world
+#   ros2 run pinky_sim_examples make_map   layouts/nav2_practice.yaml -o maps/nav2_practice
+#
+# 좌표는 Gazebo 좌표 그대로(origin 0,0). 로봇은 (0, 0)에서 +X를 보고 나온다.
+# 공식 nav2_params.yaml 의 AMCL 초기 위치도 (0, 0, 0)이라 지도와 바로 맞는다.
+#
+#        y
+#   1.8  +-----------------------------------------------+
+#        |  G2           |       선반         G3        |   위쪽 방: 지그재그 벽
+#        |               |                             |
+#   1.3  |   |           |                             |
+#        |   | (x=0.4)   | (x=1.4)                     |
+#   0.7  +---+---[ 문 0.8 m ]---------------+[0.2]+----+   가운데 벽: 문 + 좁은 틈
+#        |                  O 기둥     [상자]          |
+#   0    |  >로봇(0,0)   [낮은 턱]      O 기둥     G4  |   아래쪽 방: 기둥·상자·낮은 턱
+#  -0.6  +-----------------------------------------------+
+#       -0.4                                        2.6  x
+#
+# 목표 지점(실습에서 보낼 좌표, 단위 m, yaw rad)
+#   G1 출발점  ( 0.0,  0.0, 0)
+#   G2 왼쪽 위 (-0.1,  1.4, 1.57)   문을 지나 지그재그 첫 칸
+#   G3 오른쪽 위( 2.2,  1.1, 0)      지그재그 두 칸을 모두 지나야 함
+#   G4 오른쪽 아래( 2.3, -0.3, 0)    기둥·상자 사이
+#   G5 낮은 턱 위 ( 0.55, -0.3, 0)   지도에는 빈 곳 -> 턱 앞에서 막히지만, 도착 허용 오차(0.25 m)
+#                                    안이라 Nav2는 '성공'으로 보고한다
+#
+# 실험 포인트
+#   - 좁은 틈(0.2 m): 공식 설정(footprint 0.12 m + inflation 0.15 m)에서 경계값이다.
+#     2026-11-18 시험에서 G3 -> G4 를 보냈을 때 한 번은 문으로 돌아갔고(3.74 m), 한 번은 틈으로 지나갔다(1.67 m).
+#     -> inflation_radius 를 키우면 항상 피하고, 줄이면 항상 지나가는지 바꿔 보기
+#     (처음 설계한 0.25 m 틈은 Nav2가 지름길로 골랐다가 틈 안에서 멈췄다. 2026-11-18 시험)
+#   - 문 폭: 0.4 m, 0.6 m 에서는 문을 지나 바로 꺾을 때 경로가 문틀 모서리를 바짝 돌아
+#     "collision ahead" 로 멈췄다. 0.8 m 로 넓혔다 -> 문을 좁혀 보며 실패 재현해 보기
+#   - 낮은 턱(높이 0.08 m): 라이다(0.125 m)보다 낮아 지도·코스트맵에 없다 -> G5로 보내면 턱에 막힌다
+#   - 지그재그: 직선거리는 가깝지만 돌아가야 하는 경로 -> 전역 경로(planner) 관찰
+
+world_name: nav2_practice
+origin: [0.0, 0.0]
+wall_height: 0.25
+
+objects:
+  # ---- 바깥 벽 ----
+  - {name: wall_south, type: wall, from: [-0.4, -0.6], to: [2.6, -0.6], thickness: 0.03}
+  - {name: wall_north, type: wall, from: [-0.4,  1.8], to: [2.6,  1.8], thickness: 0.03}
+  - {name: wall_west,  type: wall, from: [-0.4, -0.6], to: [-0.4, 1.8], thickness: 0.03}
+  - {name: wall_east,  type: wall, from: [ 2.6, -0.6], to: [ 2.6, 1.8], thickness: 0.03}
+
+  # ---- 가운데 벽: 문(x 0.3~1.1, 0.8 m) + 좁은 틈(x 2.0~2.2, 0.2 m) ----
+  - {name: mid_wall_1, type: wall, from: [-0.4, 0.7], to: [0.3, 0.7], thickness: 0.03}
+  - {name: mid_wall_2, type: wall, from: [ 1.1, 0.7], to: [2.0, 0.7], thickness: 0.03}
+  - {name: mid_wall_3, type: wall, from: [ 2.2, 0.7], to: [2.6, 0.7], thickness: 0.03}
+
+  # ---- 위쪽 방 지그재그 ----
+  - {name: zig_1, type: wall, from: [0.4, 1.8], to: [0.4, 1.3], thickness: 0.03, color: [0.50, 0.58, 0.62]}
+  - {name: zig_2, type: wall, from: [1.4, 0.7], to: [1.4, 1.2], thickness: 0.03, color: [0.50, 0.58, 0.62]}
+  - {name: shelf, type: box, size: [0.30, 0.18, 0.30], at: [1.95, 1.62], color: [0.80, 0.85, 0.87]}
+
+  # ---- 아래쪽 방 장애물 ----
+  - {name: pillar_1, type: cylinder, radius: 0.06, height: 0.30, at: [1.0, 0.05], color: [0.35, 0.55, 0.85]}
+  - {name: pillar_2, type: cylinder, radius: 0.06, height: 0.30, at: [1.6, -0.25], color: [0.35, 0.55, 0.85]}
+  - {name: crate,    type: box, size: [0.30, 0.15, 0.20], at: [1.95, 0.30], color: [0.90, 0.45, 0.35]}
+  # 낮은 턱: 라이다보다 낮아 지도·코스트맵에 안 남는다(관찰용). 바퀴 반경 0.028 m라 넘지 못한다
+  - {name: low_step, type: box, size: [0.20, 0.20, 0.08], at: [0.55, -0.30], color: [0.90, 0.75, 0.30]}

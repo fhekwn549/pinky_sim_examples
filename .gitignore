@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+install/
+log/
+# 로컬 전용 문서 (공개 저장소에는 올리지 않음)
+NOTES_미확인사항.md
+docs/SENSOR_TUTORIAL_KO.md

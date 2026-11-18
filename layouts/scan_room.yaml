@@ -1,0 +1,25 @@
+# D455 3D 스캔 실습용 정사각형 방 (3 m x 3 m)
+#
+#   ros2 run pinky_sim_examples make_world layouts/scan_room.yaml -o worlds/scan_room.world
+#   ros2 launch pinky_sim_examples twin_arena.launch.py world_name:=scan_room.world gz_world:=scan_room d455:=true
+#
+# 좌표는 Gazebo 좌표 그대로(origin 0,0). 로봇은 (0, 0)에서 +X를 보고 나온다.
+# 스캔 물체는 로봇 정면 0.8 m (0.8, 0)에 있고, 방은 그 물체를 중심으로 한 정사각형이다.
+#   - D455 최소 측정거리 약 0.6 m -> 물체를 도는 반경은 0.6 m 보다 커야 한다(여기서는 0.8 m 권장)
+#   - 반경 0.8 m 원 + 로봇 크기를 넣어도 벽까지 0.5 m 이상 남는다
+
+world_name: scan_room
+origin: [0.0, 0.0]
+wall_height: 0.4
+
+objects:
+  # ---- 방: 물체(0.8, 0)를 중심으로 한 3 m x 3 m ----
+  - {name: wall_north, type: wall, from: [-0.7,  1.5], to: [ 2.3,  1.5], thickness: 0.03}
+  - {name: wall_south, type: wall, from: [-0.7, -1.5], to: [ 2.3, -1.5], thickness: 0.03}
+  - {name: wall_west,  type: wall, from: [-0.7, -1.5], to: [-0.7,  1.5], thickness: 0.03}
+  - {name: wall_east,  type: wall, from: [ 2.3, -1.5], to: [ 2.3,  1.5], thickness: 0.03}
+
+  # ---- 스캔 대상: 일부러 비대칭으로 만들어 어느 방향에서 찍었는지 구분되게 ----
+  - {name: target_base,  type: box,      size: [0.20, 0.20, 0.12], at: [0.80, 0.00], color: [0.85, 0.55, 0.30]}
+  - {name: target_tower, type: box,      size: [0.08, 0.08, 0.30], at: [0.75, 0.05], color: [0.30, 0.60, 0.85]}
+  - {name: target_can,   type: cylinder, radius: 0.035, height: 0.20, at: [0.86, -0.05], color: [0.40, 0.75, 0.40]}

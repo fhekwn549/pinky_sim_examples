@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<!-- 자동 생성 파일: make_world layouts/scan_room.yaml 로 다시 만드세요. 직접 고치면 덮어써집니다. -->
+<sdf version="1.8">
+  <world name="scan_room">
+    <!-- pinky_gz_sim/worlds/empty.world 와 같은 시스템 플러그인. Sensors가 없으면 /scan이 안 나온다 -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <direction>-0.3 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision"><geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry></collision>
+        <visual name="visual"><geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0.8000 1.5000 0.2000 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry>
+          <material><ambient>0.55 0.63 0.67 1</ambient><diffuse>0.55 0.63 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_south">
+      <static>true</static>
+      <pose>0.8000 -1.5000 0.2000 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry>
+          <material><ambient>0.55 0.63 0.67 1</ambient><diffuse>0.55 0.63 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-0.7000 0.0000 0.2000 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry>
+          <material><ambient>0.55 0.63 0.67 1</ambient><diffuse>0.55 0.63 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="wall_east">
+      <static>true</static>
+      <pose>2.3000 0.0000 0.2000 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>3.0000 0.0300 0.4000</size></box></geometry>
+          <material><ambient>0.55 0.63 0.67 1</ambient><diffuse>0.55 0.63 0.67 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="target_base">
+      <static>true</static>
+      <pose>0.8000 0.0000 0.0600 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>0.2000 0.2000 0.1200</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>0.2000 0.2000 0.1200</size></box></geometry>
+          <material><ambient>0.85 0.55 0.3 1</ambient><diffuse>0.85 0.55 0.3 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="target_tower">
+      <static>true</static>
+      <pose>0.7500 0.0500 0.1500 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>0.0800 0.0800 0.3000</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>0.0800 0.0800 0.3000</size></box></geometry>
+          <material><ambient>0.3 0.6 0.85 1</ambient><diffuse>0.3 0.6 0.85 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="target_can">
+      <static>true</static>
+      <pose>0.8600 -0.0500 0.1000 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="collision"><geometry><cylinder><radius>0.0350</radius><length>0.2000</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.0350</radius><length>0.2000</length></cylinder></geometry>
+          <material><ambient>0.4 0.75 0.4 1</ambient><diffuse>0.4 0.75 0.4 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>
